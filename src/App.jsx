@@ -92,6 +92,7 @@ export default function App() {
   // Anomaly injector controls
   const [anomalyMachine, setAnomalyMachine] = useState("M1");
   const [anomalyType, setAnomalyType] = useState("bearing_vibration");
+  const [simLabOpen, setSimLabOpen] = useState(false);
 
   // What-if simulator controls
   const [simMachine, setSimMachine] = useState("M3");
@@ -958,7 +959,7 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden text-slate-100 font-sans">
       {/* SIDEBAR NAVIGATION */}
-      <aside className="w-64 bg-[#0a0e17] border-r border-slate-800 flex flex-col justify-between shrink-0">
+      <aside className="w-64 bg-[#0a0e17] border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto">
         <div>
           {/* Logo */}
           <div className="p-6 border-b border-slate-800 flex items-center gap-3">
@@ -1041,59 +1042,69 @@ export default function App() {
         </div>
 
         {/* Failure Simulation Lab Block in Sidebar */}
-        <div className="p-4 m-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3 glass-panel-hover">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400 font-display">
-            <ShieldAlert className="w-4 h-4" />
-            <span>FAILURE SIMULATION LAB</span>
-          </div>
-          
-          <div className="space-y-2 text-xs">
-            <div>
-              <label className="text-slate-400 block mb-1">Target Asset</label>
-              <select 
-                value={anomalyMachine} 
-                onChange={(e) => {
-                  setAnomalyMachine(e.target.value);
-                  setSelectedMachine(e.target.value); // Sync active inspection view
-                }}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none"
-              >
-                {Object.entries(machineNamesMap).map(([mid, name]) => (
-                  <option key={mid} value={mid}>{name}</option>
-                ))}
-              </select>
+        <div className="p-4 m-4 rounded-xl bg-slate-900/60 border border-slate-800 glass-panel-hover">
+          <button
+            onClick={() => setSimLabOpen(prev => !prev)}
+            className="flex items-center justify-between w-full text-xs font-semibold text-rose-400 font-display"
+          >
+            <span className="flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4" />
+              FAILURE SIMULATION LAB
+            </span>
+            <span className={`transition-transform duration-200 text-slate-500 ${simLabOpen ? 'rotate-180' : ''}`}>
+              ▾
+            </span>
+          </button>
+
+          {simLabOpen && (
+            <div className="space-y-2 text-xs mt-3 pt-3 border-t border-slate-800">
+              <div>
+                <label className="text-slate-400 block mb-1">Target Asset</label>
+                <select
+                  value={anomalyMachine}
+                  onChange={(e) => {
+                    setAnomalyMachine(e.target.value);
+                    setSelectedMachine(e.target.value);
+                  }}
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none"
+                >
+                  {Object.entries(machineNamesMap).map(([mid, name]) => (
+                    <option key={mid} value={mid}>{name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">Anomaly Type</label>
+                <select
+                  value={anomalyType}
+                  onChange={(e) => setAnomalyType(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none"
+                >
+                  <option value="bearing_vibration">Bearing Friction &amp; Vibration</option>
+                  <option value="pressure_leak">Piston Pressure Leak</option>
+                  <option value="tension_stress">Belt Tension Stress</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={injectAnomaly}
+                  className="flex-1 bg-amber-600/80 hover:bg-amber-600 active:scale-95 text-white font-medium py-1.5 px-2.5 rounded flex items-center justify-center gap-1 transition text-[11px]"
+                >
+                  <Play className="w-3 h-3 fill-white" />
+                  <span>Inject Fault</span>
+                </button>
+                <button
+                  onClick={resetAllMachines}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 font-medium py-1.5 px-2.5 rounded flex items-center justify-center gap-1 transition text-[11px]"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Reset Twin</span>
+                </button>
+              </div>
             </div>
-            
-            <div>
-              <label className="text-slate-400 block mb-1">Anomaly Type</label>
-              <select 
-                value={anomalyType} 
-                onChange={(e) => setAnomalyType(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none"
-              >
-                <option value="bearing_vibration">Bearing Friction & Vibration</option>
-                <option value="pressure_leak">Piston Pressure Leak</option>
-                <option value="tension_stress">Belt Tension Stress</option>
-              </select>
-            </div>
-            
-            <div className="flex gap-2">
-              <button 
-                onClick={injectAnomaly}
-                className="flex-1 bg-amber-600/80 hover:bg-amber-600 active:scale-95 text-white font-medium py-1.5 px-2.5 rounded flex items-center justify-center gap-1 transition text-[11px]"
-              >
-                <Play className="w-3 h-3 fill-white" />
-                <span>Inject Fault</span>
-              </button>
-              <button 
-                onClick={resetAllMachines}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 font-medium py-1.5 px-2.5 rounded flex items-center justify-center gap-1 transition text-[11px]"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Reset Twin</span>
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </aside>
 
