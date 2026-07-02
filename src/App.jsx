@@ -2713,6 +2713,77 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Integration Partners + Scalability Roadmap */}
+              <div className="grid grid-cols-2 gap-6">
+                {/* Enterprise Integration Partners */}
+                <div className="glass-panel border border-slate-800 rounded-2xl p-6">
+                  <h4 className="font-bold text-sm font-display text-white mb-1">Enterprise Integration Partners</h4>
+                  <p className="text-[10px] text-slate-400 font-mono mb-4">Designed to connect with enterprise-grade industrial and IT systems out of the box.</p>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    {[
+                      {vendor:"Siemens PLC",category:"Control Systems",color:"text-sky-400"},
+                      {vendor:"Rockwell PLC",category:"Control Systems",color:"text-sky-400"},
+                      {vendor:"OPC-UA / MQTT",category:"Protocol Layer",color:"text-amber-400"},
+                      {vendor:"Azure IoT Edge",category:"Cloud Edge",color:"text-indigo-400"},
+                      {vendor:"NVIDIA Jetson",category:"Edge AI Hardware",color:"text-emerald-400"},
+                      {vendor:"SAP PM",category:"ERP / Work Orders",color:"text-rose-400"},
+                      {vendor:"IBM Maximo",category:"Asset Management",color:"text-purple-400"},
+                      {vendor:"Modbus RTU",category:"Legacy Protocol",color:"text-slate-300"},
+                    ].map(item => (
+                      <div key={item.vendor} className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-850 flex flex-col gap-0.5">
+                        <span className={`font-bold font-mono text-[11px] ${item.color}`}>{item.vendor}</span>
+                        <span className="text-[10px] text-slate-500">{item.category}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Scalability Roadmap + TRL Maturity */}
+                <div className="space-y-5">
+                  {/* TRL 5 → TRL 8 Maturity framing */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-5">
+                    <h4 className="font-bold text-sm font-display text-white mb-3">Deployment Maturity (TRL)</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-center">
+                        <span className="text-2xl font-extrabold text-amber-400 font-display">TRL 5</span>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Current — Pilot Validation</p>
+                      </div>
+                      <div className="flex-1 mx-4 h-1.5 bg-slate-800 rounded-full relative">
+                        <div className="absolute inset-y-0 left-0 w-[56%] bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full"/>
+                        <div className="absolute top-[-6px] left-[56%] w-3 h-3 rounded-full bg-emerald-400 border-2 border-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.6)]"/>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-2xl font-extrabold text-emerald-400 font-display">TRL 8</span>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Target — System Qualified</p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-mono border-t border-slate-800 pt-2">
+                      Validated in controlled simulation (TRL 5). Production integration targets TRL 8 with real PLC data within 6–12 months.
+                    </p>
+                  </div>
+
+                  {/* Scalability Roadmap */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-5">
+                    <h4 className="font-bold text-sm font-display text-white mb-3">Scalability Roadmap</h4>
+                    <div className="space-y-2.5 text-xs font-mono">
+                      {[
+                        {phase:"Phase 1",label:"Single Factory",status:"NOW",color:"text-emerald-400",dot:"bg-emerald-500"},
+                        {phase:"Phase 2",label:"Multiple Production Lines",status:"Q3 2025",color:"text-amber-400",dot:"bg-amber-500"},
+                        {phase:"Phase 3",label:"Multiple Plant Sites",status:"Q1 2026",color:"text-indigo-400",dot:"bg-indigo-500"},
+                        {phase:"Phase 4",label:"Global Manufacturing Network",status:"2027+",color:"text-purple-400",dot:"bg-purple-500"},
+                      ].map((r,i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${r.dot}`}/>
+                          <span className="text-slate-500 w-14 shrink-0">{r.phase}</span>
+                          <span className={`flex-1 font-bold ${r.color}`}>{r.label}</span>
+                          <span className="text-slate-500 shrink-0">{r.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
