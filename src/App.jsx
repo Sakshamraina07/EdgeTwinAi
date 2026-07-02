@@ -48,7 +48,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   
   // Real-time state
-  const [telemetry, setTelemetry] = useState({});
+  // Default mock telemetry — ensures charts & UI work on Vercel (no backend needed)
+  const defaultTelemetry = {
+    M1: { status: "healthy", anomaly_active: false, metrics: { temperature: 72, load: 64, vibration: 0.12, rpm: 1450 }, ai_prediction: { failure_probability: 1.4, rul_hours: 980, recommendation: "Continue Normal Operations", action: "monitor" }, name: "CNC Mill" },
+    M2: { status: "warning", anomaly_active: true,  metrics: { temperature: 88, load: 81, vibration: 0.38, rpm: 1380 }, ai_prediction: { failure_probability: 13.7, rul_hours: 320, recommendation: "Schedule Inspection within 48 hrs", action: "inspect" }, name: "Injection Molder" },
+    M3: { status: "critical", anomaly_active: true,  metrics: { temperature: 104, load: 97, vibration: 0.89, rpm: 1210 }, ai_prediction: { failure_probability: 97.5, rul_hours: 12, recommendation: "Replace Bearing Today", action: "urgent" }, name: "6-Axis Robot" },
+    M4: { status: "healthy", anomaly_active: false, metrics: { temperature: 65, load: 52, vibration: 0.09, rpm: 960 },  ai_prediction: { failure_probability: 1.8, rul_hours: 1200, recommendation: "Continue Normal Operations", action: "monitor" }, name: "Air Compressor" },
+    M5: { status: "healthy", anomaly_active: false, metrics: { temperature: 68, load: 71, vibration: 0.14, rpm: 720 },  ai_prediction: { failure_probability: 1.4, rul_hours: 850, recommendation: "Continue Normal Operations", action: "monitor" }, name: "Conveyor Belt" },
+    M6: { status: "healthy", anomaly_active: false, metrics: { temperature: 70, load: 60, vibration: 0.11, rpm: 1100 }, ai_prediction: { failure_probability: 1.4, rul_hours: 1050, recommendation: "Continue Normal Operations", action: "monitor" }, name: "Hydraulic Press" },
+  };
+  const [telemetry, setTelemetry] = useState(defaultTelemetry);
   const [financials, setFinancials] = useState({
     cost_saved: 482000,
     downtime_prevented: 18.5,
