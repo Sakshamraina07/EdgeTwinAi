@@ -92,7 +92,7 @@ export default function App() {
   // Anomaly injector controls
   const [anomalyMachine, setAnomalyMachine] = useState("M1");
   const [anomalyType, setAnomalyType] = useState("bearing_vibration");
-  const [simLabOpen, setSimLabOpen] = useState(false);
+  const [simLabOpen, setSimLabOpen] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // What-if simulator controls
