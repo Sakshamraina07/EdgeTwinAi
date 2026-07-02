@@ -108,3 +108,36 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Walkthrough Highlights */
+@keyframes pulse-highlight {
+  0%, 100% {
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+  }
+  50% {
+    border-color: rgba(16, 185, 129, 0.9) !important;
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+  }
+}
+
+.demo-highlight-ring {
+  animation: pulse-highlight 2s infinite ease-in-out;
+  border-width: 2.5px !important;
+}
+
+@keyframes pulse-highlight-danger {
+  0%, 100% {
+    border-color: rgba(244, 63, 94, 0.3) !important;
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.1);
+  }
+  50% {
+    border-color: rgba(244, 63, 94, 0.9) !important;
+    box-shadow: 0 0 25px rgba(244, 63, 94, 0.4);
+  }
+}
+
+.demo-highlight-danger {
+  animation: pulse-highlight-danger 2s infinite ease-in-out;
+  border-width: 2.5px !important;
+}
+
