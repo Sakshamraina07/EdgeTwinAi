@@ -1099,174 +1099,6 @@ export default function App() {
 
       {/* MAIN VIEW CONTENT AREA */}
       <main className="flex-1 flex flex-col bg-[#080b11] overflow-hidden">
-        {/* PRESENTER WALKTHROUGH GUIDE CONTROLLER */}
-        {walkthroughStep === 0 ? (
-          <div className="bg-[#0b1329] border-b border-emerald-500/20 px-6 py-2 flex items-center justify-between text-xs shrink-0">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span className="font-semibold text-slate-300">EdgeTwin AI Presenter Mode:</span>
-              <span className="text-slate-400">Interactive walkthrough for customer pitching & client demonstrations.</span>
-            </div>
-            <button 
-              onClick={() => {
-                resetAllLocal();
-                setWalkthroughStep(1);
-                setActiveTab("dashboard");
-              }}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-3 rounded text-[10px] uppercase tracking-wider transition active:scale-95 glow-emerald"
-            >
-              Start Walkthrough
-            </button>
-          </div>
-        ) : (
-          <div className="bg-[#0f172a] border-b border-indigo-500/30 px-6 py-3 flex flex-col gap-2 shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="bg-indigo-600/20 text-indigo-400 border border-indigo-500/40 px-2 py-0.5 rounded text-[10px] font-bold font-mono">STEP {walkthroughStep} OF 6</span>
-                <span className="font-bold text-sm text-white font-display">
-                  {walkthroughStep === 1 && "1. Establish Baseline Operations (Healthy Factory)"}
-                  {walkthroughStep === 2 && "2. Sensor Friction Detected (Fault Injection)"}
-                  {walkthroughStep === 3 && "3. Real-Time Diagnostics & Strategy Analysis"}
-                  {walkthroughStep === 4 && "4. Executive Approval & Workflow Dispatch"}
-                  {walkthroughStep === 5 && "5. Autonomous Scheduler Optimization"}
-                  {walkthroughStep === 6 && "6. Structural Maintenance Completed (Factory Restored)"}
-                </span>
-              </div>
-              <button 
-                onClick={() => resetAllLocal()}
-                className="text-slate-400 hover:text-rose-400 text-[10px] font-bold uppercase transition"
-              >
-                Quit Walkthrough
-              </button>
-            </div>
-            
-            <div className="flex items-center justify-between text-xs mt-1 bg-slate-950/60 p-2.5 rounded-lg border border-slate-900">
-              <p className="text-slate-300 max-w-4xl">
-                {walkthroughStep === 1 && "The factory is running in baseline healthy parameters (99% health). The ESG Impact card calculates carbon savings. Explain to the client how the platform runs fully offline on local Edge nodes."}
-                {walkthroughStep === 2 && "Inject a simulated bearing fatigue fault on M3. This will trigger progressive physical heat/vibration degradation and update AI telemetry."}
-                {walkthroughStep === 3 && "EdgeTwin's Diagnostic Engine detects the anomaly. Review the detailed Engineering Explainability Report (metrics, RUL, impact) and the Operational Decision Intelligence Engine comparing repair options."}
-                {walkthroughStep === 4 && "Approve the recommended 'Option C' to shift production and schedule an off-peak maintenance window. This automatically dispatches to the maintenance queue."}
-                {walkthroughStep === 5 && "Open the Maintenance Planner tab to review the autonomously compiled, optimized technician shift schedule and the avoidance of ₹4.35 Lakh in expected losses."}
-                {walkthroughStep === 6 && "The technician completes the bearing replacement. Telemetry resets, savings ledger increments by ₹4,17,000, and the factory returns to peak performance."}
-              </p>
-              
-              <div className="flex items-center gap-2">
-                {walkthroughStep === 1 && (
-                  <button 
-                    onClick={() => {
-                      injectAnomalyLocal("M3", "vibration");
-                      setWalkthroughStep(2);
-                    }}
-                    className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider flex items-center gap-1"
-                  >
-                    <Play className="w-3.5 h-3.5" /> Inject Fault (M3)
-                  </button>
-                )}
-                {walkthroughStep === 2 && (
-                  <button 
-                    onClick={() => {
-                      setSelectedMachine("M3");
-                      setWalkthroughStep(3);
-                    }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider"
-                  >
-                    View M3 Diagnosis
-                  </button>
-                )}
-                {walkthroughStep === 3 && (
-                  <button 
-                    onClick={() => {
-                      setWalkthroughStep(4);
-                    }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider"
-                  >
-                    Compare Actions
-                  </button>
-                )}
-                {walkthroughStep === 4 && (
-                  <button 
-                    onClick={() => {
-                      approveRecommendation("M3");
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider glow-emerald"
-                  >
-                    Auto-Approve Plan
-                  </button>
-                )}
-                {walkthroughStep === 5 && (
-                  <button 
-                    onClick={() => {
-                      if (schedule.length > 0) {
-                        completeTaskLocal(schedule[0].id);
-                      } else {
-                        completeTaskLocal("slot_m3");
-                      }
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider glow-emerald"
-                  >
-                    Complete Service (M3)
-                  </button>
-                )}
-                {walkthroughStep === 6 && (
-                  <button 
-                    onClick={() => {
-                      resetAllLocal();
-                      setWalkthroughStep(1);
-                      setActiveTab("dashboard");
-                    }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider"
-                  >
-                    Reset & Restart
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* AI EXECUTIVE SUMMARY BANNER */}
-        {(() => {
-          const criticalMachines = Object.values(telemetry).filter(m => m.status === "critical");
-          const warningMachines = Object.values(telemetry).filter(m => m.status === "warning");
-          const isCritical = criticalMachines.length > 0;
-          
-          let bannerClass = "bg-emerald-950/40 border-emerald-500/20 text-emerald-200";
-          let iconClass = "text-emerald-400";
-          let message = "Health: 99% — No critical assets require attention.";
-          let confidence = "98%";
-          
-          if (isCritical) {
-            bannerClass = "bg-rose-950/80 border-rose-500/40 text-rose-200 animate-pulse";
-            iconClass = "text-rose-400 animate-bounce";
-            message = `Health: ${Math.round(100 - (criticalMachines.length * 15))}% — ${criticalMachines.length} critical asset(s) need attention. Potential loss: ₹2.8 lakh. Maintenance plan ready.`;
-            confidence = "94%";
-          } else if (warningMachines.length > 0) {
-            bannerClass = "bg-amber-950/60 border-amber-500/30 text-amber-200";
-            iconClass = "text-amber-400";
-            message = `Health: ${Math.round(100 - (warningMachines.length * 5))}% — ${warningMachines.length} asset(s) show early wear. Active monitoring recommended.`;
-            confidence = "91%";
-          }
-
-          return (
-            <div className={`border-b px-6 py-2 flex items-center justify-between text-xs font-semibold tracking-wide shrink-0 ${bannerClass}`}>
-              <div className="flex items-center gap-2">
-                <Sparkles className={`w-4 h-4 ${iconClass}`} />
-                <span><strong className="uppercase tracking-widest opacity-80">AI Executive Summary:</strong> {message}</span>
-              </div>
-              <div className="flex gap-4 items-center">
-                <span className="opacity-80">Confidence: <strong className="text-white text-sm ml-1">{confidence}</strong></span>
-                {isCritical && (
-                  <button 
-                    onClick={() => { setActiveTab("planner"); optimizeSchedule(); }}
-                    className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold uppercase tracking-wider transition active:scale-95 text-[10px]"
-                  >
-                    Approve Maintenance Plan
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
         
         {/* TOP STATUS BAR */}
         <header className="h-16 border-b border-slate-800/80 bg-[#090d16]/90 px-8 flex items-center justify-between shrink-0">
@@ -1319,6 +1151,101 @@ export default function App() {
                     <span className="text-slate-300 font-mono">Live WebSocket Broadcast</span>
                   </div>
                 </div>
+
+                {/* PRESENTER WALKTHROUGH GUIDE CONTROLLER */}
+                {walkthroughStep === 0 ? (
+                  <div className="bg-[#0b1329] border border-emerald-500/20 rounded-xl px-5 py-3 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span className="font-semibold text-slate-300">EdgeTwin AI Presenter Mode:</span>
+                      <span className="text-slate-400">Interactive walkthrough for customer pitching &amp; client demonstrations.</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        resetAllLocal();
+                        setWalkthroughStep(1);
+                        setActiveTab("dashboard");
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-4 py-1.5 rounded font-bold uppercase tracking-wider transition text-[10px]"
+                    >
+                      START WALKTHROUGH
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-[#0a1528] border border-indigo-500/30 rounded-xl px-5 py-2 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+                      <span className="font-semibold text-indigo-300">WALKTHROUGH ACTIVE —</span>
+                      <span className="text-slate-300">
+                        {walkthroughStep === 1 && "1. Baseline Operations (Healthy Factory)"}
+                        {walkthroughStep === 2 && "2. Anomaly Detected — Financial Alert"}
+                        {walkthroughStep === 3 && "3. Explainable AI & Options Comparison"}
+                        {walkthroughStep === 4 && "4. Approval & Dispatch"}
+                        {walkthroughStep === 5 && "5. Autonomous Scheduler Integration"}
+                        {walkthroughStep === 6 && "6. Factory Recovery & Profit Realization"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {walkthroughStep === 1 && (
+                        <button onClick={() => { injectAnomalyLocal("M3", "vibration"); setWalkthroughStep(2); }} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Inject Fault (M3)</button>
+                      )}
+                      {walkthroughStep === 2 && (
+                        <button onClick={() => { setSelectedMachine("M3"); setWalkthroughStep(3); }} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">View M3 Diagnosis</button>
+                      )}
+                      {walkthroughStep === 3 && (
+                        <button onClick={() => setWalkthroughStep(4)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Compare Actions</button>
+                      )}
+                      {walkthroughStep === 4 && (
+                        <button onClick={() => approveRecommendation("M3")} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider glow-emerald">Auto-Approve Plan</button>
+                      )}
+                      {walkthroughStep === 5 && (
+                        <button onClick={() => { completeTaskLocal(schedule.length > 0 ? schedule[0].id : "slot_m3"); setWalkthroughStep(6); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Complete Task</button>
+                      )}
+                      {walkthroughStep === 6 && (
+                        <button onClick={() => resetAllLocal()} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Reset &amp; Restart</button>
+                      )}
+                      <button onClick={() => resetAllLocal()} className="text-slate-400 hover:text-rose-400 text-[10px] font-bold uppercase transition">Quit</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* AI EXECUTIVE SUMMARY BANNER */}
+                {(() => {
+                  const criticalMachines = Object.values(telemetry).filter(m => m.status === "critical");
+                  const warningMachines = Object.values(telemetry).filter(m => m.status === "warning");
+                  const isCritical = criticalMachines.length > 0;
+                  let bannerClass = "bg-emerald-950/40 border-emerald-500/20 text-emerald-200";
+                  let iconClass = "text-emerald-400";
+                  let message = "Health: 99% — No critical assets require attention.";
+                  let confidence = "98%";
+                  if (isCritical) {
+                    bannerClass = "bg-rose-950/60 border-rose-500/30 text-rose-200";
+                    iconClass = "text-rose-400";
+                    message = `Health: ${Math.round(100 - (criticalMachines.length * 15))}% — ${criticalMachines.length} critical asset(s) need attention. Potential loss: ₹2.8 lakh. Maintenance plan ready.`;
+                    confidence = "94%";
+                  } else if (warningMachines.length > 0) {
+                    bannerClass = "bg-amber-950/40 border-amber-500/20 text-amber-200";
+                    iconClass = "text-amber-400";
+                    message = `Health: ${Math.round(100 - (warningMachines.length * 5))}% — ${warningMachines.length} asset(s) show early wear.`;
+                    confidence = "91%";
+                  }
+                  return (
+                    <div className={`border rounded-xl px-5 py-3 flex items-center justify-between text-xs font-semibold tracking-wide ${bannerClass}`}>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className={`w-4 h-4 ${iconClass}`} />
+                        <span><strong className="uppercase tracking-widest opacity-80">AI Executive Summary:</strong> {message}</span>
+                      </div>
+                      <div className="flex gap-4 items-center">
+                        <span className="opacity-80">Confidence: <strong className="text-white text-sm ml-1">{confidence}</strong></span>
+                        {isCritical && (
+                          <button onClick={() => { setActiveTab("planner"); optimizeSchedule(); }} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold uppercase tracking-wider transition active:scale-95 text-[10px]">
+                            Approve Maintenance Plan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* AI Value Generated Today - Premium KPI Card */}
                 <div className="glass-panel border border-emerald-900/30 rounded-xl p-3 relative overflow-hidden bg-gradient-to-r from-emerald-950/20 to-slate-900/60">
