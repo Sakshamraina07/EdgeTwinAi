@@ -50,12 +50,12 @@ export default function App() {
   // Real-time state
   // Default mock telemetry — ensures charts & UI work on Vercel (no backend needed)
   const defaultTelemetry = {
-    M1: { status: "healthy", anomaly_active: false, metrics: { temperature: 72, load: 64, vibration: 0.12, rpm: 1450 }, ai_prediction: { failure_probability: 1.4, rul_hours: 980, recommendation: "Continue Normal Operations", action: "monitor" }, name: "CNC Mill" },
-    M2: { status: "warning", anomaly_active: true,  metrics: { temperature: 88, load: 81, vibration: 0.38, rpm: 1380 }, ai_prediction: { failure_probability: 13.7, rul_hours: 320, recommendation: "Schedule Inspection within 48 hrs", action: "inspect" }, name: "Injection Molder" },
-    M3: { status: "critical", anomaly_active: true,  metrics: { temperature: 104, load: 97, vibration: 0.89, rpm: 1210 }, ai_prediction: { failure_probability: 97.5, rul_hours: 12, recommendation: "Replace Bearing Today", action: "urgent" }, name: "6-Axis Robot" },
-    M4: { status: "healthy", anomaly_active: false, metrics: { temperature: 65, load: 52, vibration: 0.09, rpm: 960 },  ai_prediction: { failure_probability: 1.8, rul_hours: 1200, recommendation: "Continue Normal Operations", action: "monitor" }, name: "Air Compressor" },
-    M5: { status: "healthy", anomaly_active: false, metrics: { temperature: 68, load: 71, vibration: 0.14, rpm: 720 },  ai_prediction: { failure_probability: 1.4, rul_hours: 850, recommendation: "Continue Normal Operations", action: "monitor" }, name: "Conveyor Belt" },
-    M6: { status: "healthy", anomaly_active: false, metrics: { temperature: 70, load: 60, vibration: 0.11, rpm: 1100 }, ai_prediction: { failure_probability: 1.4, rul_hours: 1050, recommendation: "Continue Normal Operations", action: "monitor" }, name: "Hydraulic Press" },
+    M1: { status: "healthy", anomaly_active: false, metrics: { temperature: 72, load: 64, vibration: 0.12, rpm: 1450 }, ai_prediction: { failure_probability: 1.4, rul_hours: 980, recommendation: "Continue Normal Operations", action: "monitor", feature_importances: { "Temperature": 42, "Vibration": 28, "Load Cycle": 18, "RPM Drift": 12 } }, name: "CNC Mill" },
+    M2: { status: "warning", anomaly_active: true,  metrics: { temperature: 88, load: 81, vibration: 0.38, rpm: 1380 }, ai_prediction: { failure_probability: 13.7, rul_hours: 320, recommendation: "Schedule Inspection within 48 hrs", action: "inspect", feature_importances: { "Vibration": 51, "Temperature": 29, "Load Cycle": 14, "RPM Drift": 6 } }, name: "Injection Molder" },
+    M3: { status: "critical", anomaly_active: true,  metrics: { temperature: 104, load: 97, vibration: 0.89, rpm: 1210 }, ai_prediction: { failure_probability: 97.5, rul_hours: 12, recommendation: "Replace Bearing Today", action: "urgent", feature_importances: { "Vibration": 63, "Temperature": 22, "Load Cycle": 10, "RPM Drift": 5 } }, name: "6-Axis Robot" },
+    M4: { status: "healthy", anomaly_active: false, metrics: { temperature: 65, load: 52, vibration: 0.09, rpm: 960 },  ai_prediction: { failure_probability: 1.8, rul_hours: 1200, recommendation: "Continue Normal Operations", action: "monitor", feature_importances: { "Temperature": 38, "Load Cycle": 35, "Vibration": 17, "RPM Drift": 10 } }, name: "Air Compressor" },
+    M5: { status: "healthy", anomaly_active: false, metrics: { temperature: 68, load: 71, vibration: 0.14, rpm: 720 },  ai_prediction: { failure_probability: 1.4, rul_hours: 850, recommendation: "Continue Normal Operations", action: "monitor", feature_importances: { "Load Cycle": 45, "Vibration": 30, "Temperature": 16, "RPM Drift": 9 } }, name: "Conveyor Belt" },
+    M6: { status: "healthy", anomaly_active: false, metrics: { temperature: 70, load: 60, vibration: 0.11, rpm: 1100 }, ai_prediction: { failure_probability: 1.4, rul_hours: 1050, recommendation: "Continue Normal Operations", action: "monitor", feature_importances: { "Temperature": 40, "Vibration": 32, "Load Cycle": 20, "RPM Drift": 8 } }, name: "Hydraulic Press" },
   };
   const [telemetry, setTelemetry] = useState(defaultTelemetry);
   const [financials, setFinancials] = useState({
@@ -307,7 +307,7 @@ export default function App() {
       }
     };
 
-    connectWS();
+    connectWS()
     fetchIncidents();
     fetchSchedule();
 
@@ -315,6 +315,28 @@ export default function App() {
       if (ws) ws.close();
       if (fallbackInterval) clearInterval(fallbackInterval);
     };
+  }, []);
+
+  // Live telemetry ticker — fluctuates sensor values every 2s so chart stays animated
+  // even without a backend (Vercel-safe)
+  useEffect(() => {
+    const ticker = setInterval(() => {
+      setTelemetry(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(mid => {
+          const m = { ...next[mid] };
+          const metrics = { ...m.metrics };
+          // Small random fluctuation to simulate real sensor noise
+          metrics.temperature = parseFloat((metrics.temperature + (Math.random() - 0.48) * 0.6).toFixed(1));
+          metrics.vibration = parseFloat(Math.max(0.01, metrics.vibration + (Math.random() - 0.48) * 0.008).toFixed(3));
+          metrics.load = parseFloat(Math.min(100, Math.max(10, metrics.load + (Math.random() - 0.48) * 0.5)).toFixed(1));
+          m.metrics = metrics;
+          next[mid] = m;
+        });
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(ticker);
   }, []);
 
   // Fetch incidents list
@@ -343,28 +365,56 @@ export default function App() {
     }
   };
 
-  // Run What-If simulation
-  const runSimulation = async () => {
+  // Run What-If simulation — pure frontend calculation, no backend needed
+  const runSimulation = () => {
     setSimLoading(true);
-    try {
-      const res = await fetch("/api/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          machine_id: simMachine,
-          action: simAction,
-          value: parseFloat(simValue)
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSimResult(data);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSimLoading(false);
+    const machine = telemetry[simMachine] || {};
+    const failureProb = machine.ai_prediction?.failure_probability || 5;
+    const baseTemp = machine.metrics?.temperature || 75;
+    const baseLoad = machine.metrics?.load || 60;
+    
+    // Financial base values per machine
+    const financialBases = {
+      M1: { planned: 15000, failure_total: 280000 },
+      M2: { planned: 25000, failure_total: 360000 },
+      M3: { planned: 18000, failure_total: 420000 },
+      M4: { planned: 10000, failure_total: 200000 },
+      M5: { planned: 8000, failure_total: 190000 },
+      M6: { planned: 20000, failure_total: 310000 },
+    };
+    const fBase = financialBases[simMachine] || { planned: 15000, failure_total: 300000 };
+    const hours = parseFloat(simValue);
+
+    let result;
+    if (simAction === "postpone") {
+      const riskAtEnd = Math.min(99, failureProb + hours * 0.8);
+      const estimated_financial_loss = Math.round((riskAtEnd / 100) * fBase.failure_total);
+      result = {
+        failure_risk: riskAtEnd.toFixed(1),
+        estimated_financial_loss,
+        expected_downtime_hours: Math.round(hours * 0.6),
+        delivery_delay_risk: riskAtEnd > 60 ? "HIGH" : riskAtEnd > 30 ? "MEDIUM" : "LOW",
+        additional_energy_consumption_pct: (hours * 0.15).toFixed(1),
+        justification: `Postponing maintenance on ${simMachine} by ${hours}h increases bearing failure risk from ${failureProb}% to ${riskAtEnd.toFixed(1)}%. Estimated production loss: ₹${estimated_financial_loss.toLocaleString()}. Recommend scheduling preventive maintenance before risk threshold breach.`
+      };
+    } else {
+      const prod_loss_per_hr = fBase.failure_total * 0.002;
+      const controlled_cost = Math.round(fBase.planned + prod_loss_per_hr * hours);
+      const energy_saved_kwh = Math.round(hours * (baseLoad * 0.5));
+      result = {
+        failure_risk: Math.max(0, failureProb - hours * 2).toFixed(1),
+        net_financial_impact: controlled_cost,
+        expected_downtime_hours: hours,
+        delivery_delay_risk: hours > 8 ? "MEDIUM" : "LOW",
+        energy_saved_kwh,
+        justification: `Planned ${hours}h shutdown of ${simMachine} will cost ₹${controlled_cost.toLocaleString()} in production idle time but saves ${energy_saved_kwh} kWh and reduces failure probability by ~${(hours * 2).toFixed(0)}%. Net savings vs reactive repair: ₹${(fBase.failure_total - controlled_cost).toLocaleString()}.`
+      };
     }
+    
+    setTimeout(() => {
+      setSimResult(result);
+      setSimLoading(false);
+    }, 600); // Simulate brief compute time for UX
   };
 
   // Auto-run simulation on slider change
