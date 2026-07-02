@@ -1003,10 +1003,10 @@ export default function App() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${activeTab === tab ? "bg-emerald-600/10 text-emerald-400 font-medium" : "text-slate-400 hover:text-white hover:bg-slate-800/50"}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium ${activeTab === tab ? "bg-emerald-600/10 text-emerald-400" : "text-white hover:bg-slate-800/60"}`}
             >
               <span className="shrink-0">{icon}</span>
-              <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarOpen ? 'max-w-full opacity-100' : 'max-w-full opacity-70 text-xs'}`}>{label}</span>
+              <span className="whitespace-nowrap">{label}</span>
             </button>
           ))}
         </nav>
@@ -1019,19 +1019,19 @@ export default function App() {
           >
             <span className="flex items-center gap-1.5">
               <ShieldAlert className="w-4 h-4" />
-              <span className={`whitespace-nowrap transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-70'}`}>FAILURE SIMULATION LAB</span>
+              <span className="whitespace-nowrap">FAILURE SIMULATION LAB</span>
             </span>
-              <span className={`transition-transform duration-200 text-slate-500 ${simLabOpen ? 'rotate-180' : ''}`}>▾</span>
+            <span className={`transition-transform duration-200 text-white ${simLabOpen ? 'rotate-180' : ''}`}>▾</span>
           </button>
 
           {simLabOpen && (
             <div className="space-y-2 text-xs mt-3 pt-3 border-t border-slate-800">
               <div>
-                <label className="text-slate-400 block mb-1">Target Asset</label>
+                <label className="text-white font-medium block mb-1">Target Asset</label>
                 <select
                   value={anomalyMachine}
                   onChange={(e) => { setAnomalyMachine(e.target.value); setSelectedMachine(e.target.value); }}
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white outline-none"
                 >
                   {Object.entries(machineNamesMap).map(([mid, name]) => (
                     <option key={mid} value={mid}>{name}</option>
@@ -1039,11 +1039,11 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="text-slate-400 block mb-1">Anomaly Type</label>
+                <label className="text-white font-medium block mb-1">Anomaly Type</label>
                 <select
                   value={anomalyType}
                   onChange={(e) => setAnomalyType(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white outline-none"
                 >
                   <option value="bearing_vibration">Bearing Friction &amp; Vibration</option>
                   <option value="pressure_leak">Piston Pressure Leak</option>
