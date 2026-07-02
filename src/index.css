@@ -1,0 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #080c14;
+  color: #e2e8f0;
+  overflow-x: hidden;
+}
+
+/* Custom font styling */
+.font-display {
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Glow status borders and background glow effects */
+.glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+}
+
+.glow-amber {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+}
+
+.glow-rose {
+  box-shadow: 0 0 25px rgba(244, 63, 94, 0.18);
+  border: 1px solid rgba(244, 63, 94, 0.4) !important;
+}
+
+/* Background pulse for critical machine widgets */
+@keyframes status-pulse-red {
+  0%, 100% {
+    background-color: rgba(244, 63, 94, 0.05);
+  }
+  50% {
+    background-color: rgba(244, 63, 94, 0.15);
+  }
+}
+
+.pulse-critical {
+  animation: status-pulse-red 2s infinite ease-in-out;
+}
+
+/* Pulse animation for active flow lines in digital twin floor plan */
+@keyframes flow-pulse-anim {
+  from {
+    stroke-dashoffset: 40;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.flow-active {
+  stroke-dasharray: 8, 4;
+  animation: flow-pulse-anim 3s linear infinite;
+}
+
+/* Custom scrollbars for chat, timelines, and sidebar layouts */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Glassmorphism panel base */
+.glass-panel {
+  background: rgba(13, 19, 33, 0.65);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(18, 28, 48, 0.8);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
