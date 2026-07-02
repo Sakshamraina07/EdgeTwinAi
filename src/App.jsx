@@ -961,77 +961,80 @@ export default function App() {
     <div className="flex h-screen overflow-hidden text-slate-100 font-sans">
       {/* SIDEBAR NAVIGATION */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-52'} bg-[#0a0e17] border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto transition-all duration-300`}>
-        
+
         {/* Logo + Toggle */}
-        <div className="border-b border-slate-800 flex items-center p-4 gap-3 justify-between">
-          <div className="flex items-center gap-3">
+        <div className="border-b border-slate-800 flex items-center px-3 py-4 gap-3 justify-between">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="relative shrink-0">
-              <Cpu className="w-7 h-7 text-emerald-400" />
-              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#0a0e17] ${wsConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+              <Cpu className="w-6 h-6 text-emerald-400" />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0e17] ${wsConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
             </div>
-            <div className="overflow-hidden">
-              <h1 className="text-base font-bold font-display tracking-tight text-white whitespace-nowrap">EdgeTwin AI</h1>
-              <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono font-semibold whitespace-nowrap">Decision Intelligence</p>
+            <div className="min-w-0">
+              <h1 className="text-sm font-bold font-display tracking-tight text-white whitespace-nowrap">EdgeTwin AI</h1>
+              <p className="text-[9px] text-emerald-400 uppercase tracking-widest font-mono font-semibold whitespace-nowrap">Decision Intelligence</p>
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(prev => !prev)}
-            className="text-slate-500 hover:text-white transition p-1 rounded hover:bg-slate-800 shrink-0"
-            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            className="text-slate-400 hover:text-white transition p-1 rounded hover:bg-slate-800 shrink-0"
+            title={sidebarOpen ? "Collapse" : "Expand"}
           >
             {sidebarOpen ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
             )}
           </button>
         </div>
 
         {/* Nav Items */}
-        <nav className="p-3 space-y-1 flex-1">
+        <nav className="px-3 pt-3 pb-2 space-y-0.5">
           {[
-            { tab: "dashboard", icon: <Layers className="w-4 h-4" />, label: "Digital Twin Grid" },
-            { tab: "profit", icon: <DollarSign className="w-4 h-4" />, label: "Profit ROI Hub" },
-            { tab: "analytics", icon: <BarChart2 className="w-4 h-4" />, label: "Analytics & XAI" },
-            { tab: "whatif", icon: <RefreshCw className="w-4 h-4" />, label: "What-If Sandbox" },
-            { tab: "projections", icon: <Clock className="w-4 h-4" />, label: "Scenario Projections" },
-            { tab: "opportunities", icon: <Sparkles className="w-4 h-4" />, label: "Opportunity Finder" },
-            { tab: "planner", icon: <Calendar className="w-4 h-4" />, label: "Maintenance Planner" },
-            { tab: "timeline", icon: <Activity className="w-4 h-4" />, label: "Incident Timeline" },
-            { tab: "architecture", icon: <Cpu className="w-4 h-4" />, label: "Deployment & Innovation" },
+            { tab: "dashboard", icon: <Layers className="w-4 h-4 shrink-0" />, label: "Digital Twin Grid" },
+            { tab: "profit", icon: <DollarSign className="w-4 h-4 shrink-0" />, label: "Profit ROI Hub" },
+            { tab: "analytics", icon: <BarChart2 className="w-4 h-4 shrink-0" />, label: "Analytics & XAI" },
+            { tab: "whatif", icon: <RefreshCw className="w-4 h-4 shrink-0" />, label: "What-If Sandbox" },
+            { tab: "projections", icon: <Clock className="w-4 h-4 shrink-0" />, label: "Scenario Projections" },
+            { tab: "opportunities", icon: <Sparkles className="w-4 h-4 shrink-0" />, label: "Opportunity Finder" },
+            { tab: "planner", icon: <Calendar className="w-4 h-4 shrink-0" />, label: "Maintenance Planner" },
+            { tab: "timeline", icon: <Activity className="w-4 h-4 shrink-0" />, label: "Incident Timeline" },
+            { tab: "architecture", icon: <Cpu className="w-4 h-4 shrink-0" />, label: "Deployment & Innovation" },
           ].map(({ tab, icon, label }) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition font-medium ${activeTab === tab ? "bg-emerald-600/10 text-emerald-400" : "text-white hover:bg-slate-800/60"}`}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab ? "bg-emerald-600/10 text-emerald-400" : "text-white hover:bg-slate-800/60"}`}
             >
-              <span className="shrink-0">{icon}</span>
-              <span className="whitespace-nowrap">{label}</span>
+              {icon}
+              <span className="whitespace-nowrap truncate">{label}</span>
             </button>
           ))}
         </nav>
 
-        {/* Failure Simulation Lab Block in Sidebar */}
-        <div className="p-4 m-3 rounded-xl bg-slate-900/60 border border-slate-800 glass-panel-hover">
+        {/* Divider */}
+        <div className="mx-3 border-t border-slate-800/60 my-2" />
+
+        {/* Failure Simulation Lab */}
+        <div className="mx-3 mb-3 rounded-xl bg-slate-900/60 border border-slate-800">
           <button
             onClick={() => setSimLabOpen(prev => !prev)}
-            className="flex items-center justify-between w-full text-xs font-semibold text-rose-400 font-display"
+            className="w-full flex items-center justify-between px-3 py-3 text-xs font-semibold text-rose-400 font-display"
           >
-            <span className="flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4" />
+            <span className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
               <span className="whitespace-nowrap">FAILURE SIMULATION LAB</span>
             </span>
-            <span className={`transition-transform duration-200 text-white ${simLabOpen ? 'rotate-180' : ''}`}>▾</span>
+            <span className={`transition-transform duration-200 text-white text-base leading-none ${simLabOpen ? 'rotate-180' : ''}`}>▾</span>
           </button>
 
           {simLabOpen && (
-            <div className="space-y-2 text-xs mt-3 pt-3 border-t border-slate-800">
-              <div>
+            <div className="px-3 pb-3 space-y-2 text-xs border-t border-slate-800">
+              <div className="pt-2">
                 <label className="text-white font-medium block mb-1">Target Asset</label>
                 <select
                   value={anomalyMachine}
                   onChange={(e) => { setAnomalyMachine(e.target.value); setSelectedMachine(e.target.value); }}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white outline-none"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-white outline-none"
                 >
                   {Object.entries(machineNamesMap).map(([mid, name]) => (
                     <option key={mid} value={mid}>{name}</option>
@@ -1043,7 +1046,7 @@ export default function App() {
                 <select
                   value={anomalyType}
                   onChange={(e) => setAnomalyType(e.target.value)}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white outline-none"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-white outline-none"
                 >
                   <option value="bearing_vibration">Bearing Friction &amp; Vibration</option>
                   <option value="pressure_leak">Piston Pressure Leak</option>
@@ -1051,10 +1054,10 @@ export default function App() {
                 </select>
               </div>
               <div className="flex gap-2 pt-1">
-                <button onClick={injectAnomaly} className="flex-1 bg-amber-600/80 hover:bg-amber-600 active:scale-95 text-white font-medium py-1.5 px-2.5 rounded flex items-center justify-center gap-1 transition text-[11px]">
+                <button onClick={injectAnomaly} className="flex-1 bg-amber-600/80 hover:bg-amber-600 active:scale-95 text-white font-medium py-1.5 rounded flex items-center justify-center gap-1 transition text-[11px]">
                   <Play className="w-3 h-3 fill-white" /><span>Inject Fault</span>
                 </button>
-                <button onClick={resetAllMachines} className="flex-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 font-medium py-1.5 px-2.5 rounded flex items-center justify-center gap-1 transition text-[11px]">
+                <button onClick={resetAllMachines} className="flex-1 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white border border-slate-600 font-medium py-1.5 rounded flex items-center justify-center gap-1 transition text-[11px]">
                   <RefreshCw className="w-3 h-3" /><span>Reset Twin</span>
                 </button>
               </div>
