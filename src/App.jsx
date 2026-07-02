@@ -960,31 +960,23 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden text-slate-100 font-sans">
       {/* SIDEBAR NAVIGATION */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-[#0a0e17] border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto transition-all duration-300`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-52'} bg-[#0a0e17] border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto transition-all duration-300`}>
         
         {/* Logo + Toggle */}
-        <div className={`border-b border-slate-800 flex items-center ${sidebarOpen ? 'p-6 gap-3 justify-between' : 'p-3 justify-center'}`}>
-          {sidebarOpen && (
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Cpu className="w-7 h-7 text-emerald-400" />
-                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#0a0e17] ${wsConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-              </div>
-              <div>
-                <h1 className="text-lg font-bold font-display tracking-tight text-white">EdgeTwin AI</h1>
-                <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono font-semibold">Decision Intelligence</p>
-              </div>
+        <div className="border-b border-slate-800 flex items-center p-4 gap-3 justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <Cpu className="w-7 h-7 text-emerald-400" />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[#0a0e17] ${wsConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
             </div>
-          )}
-          {!sidebarOpen && (
-            <div className="relative">
-              <Cpu className="w-6 h-6 text-emerald-400" />
-              <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0e17] ${wsConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+            <div className="overflow-hidden">
+              <h1 className="text-base font-bold font-display tracking-tight text-white whitespace-nowrap">EdgeTwin AI</h1>
+              <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono font-semibold whitespace-nowrap">Decision Intelligence</p>
             </div>
-          )}
+          </div>
           <button
             onClick={() => setSidebarOpen(prev => !prev)}
-            className="text-slate-500 hover:text-white transition p-1 rounded hover:bg-slate-800"
+            className="text-slate-500 hover:text-white transition p-1 rounded hover:bg-slate-800 shrink-0"
             title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {sidebarOpen ? (
@@ -996,7 +988,7 @@ export default function App() {
         </div>
 
         {/* Nav Items */}
-        <nav className={`${sidebarOpen ? 'p-4' : 'p-2'} space-y-1 flex-1`}>
+        <nav className="p-3 space-y-1 flex-1">
           {[
             { tab: "dashboard", icon: <Layers className="w-4 h-4" />, label: "Digital Twin Grid" },
             { tab: "profit", icon: <DollarSign className="w-4 h-4" />, label: "Profit ROI Hub" },
@@ -1011,32 +1003,28 @@ export default function App() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              title={!sidebarOpen ? label : undefined}
-              className={`w-full flex items-center ${sidebarOpen ? 'gap-3 px-4 py-3' : 'justify-center p-3'} rounded-lg text-sm transition ${activeTab === tab ? "bg-emerald-600/10 text-emerald-400 font-medium" : "text-slate-400 hover:text-white hover:bg-slate-800/50"}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${activeTab === tab ? "bg-emerald-600/10 text-emerald-400 font-medium" : "text-slate-400 hover:text-white hover:bg-slate-800/50"}`}
             >
-              {icon}
-              {sidebarOpen && <span>{label}</span>}
+              <span className="shrink-0">{icon}</span>
+              <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarOpen ? 'max-w-full opacity-100' : 'max-w-full opacity-70 text-xs'}`}>{label}</span>
             </button>
           ))}
         </nav>
 
         {/* Failure Simulation Lab Block in Sidebar */}
-        <div className={`${sidebarOpen ? 'p-4 m-4' : 'p-2 m-2'} rounded-xl bg-slate-900/60 border border-slate-800 glass-panel-hover`}>
+        <div className="p-4 m-3 rounded-xl bg-slate-900/60 border border-slate-800 glass-panel-hover">
           <button
-            onClick={() => { if (!sidebarOpen) { setSidebarOpen(true); setSimLabOpen(true); } else setSimLabOpen(prev => !prev); }}
-            className={`flex items-center ${sidebarOpen ? 'justify-between w-full' : 'justify-center w-full'} text-xs font-semibold text-rose-400 font-display`}
-            title={!sidebarOpen ? "Failure Simulation Lab" : undefined}
+            onClick={() => setSimLabOpen(prev => !prev)}
+            className="flex items-center justify-between w-full text-xs font-semibold text-rose-400 font-display"
           >
-            <span className={`flex items-center ${sidebarOpen ? 'gap-1.5' : ''}`}>
+            <span className="flex items-center gap-1.5">
               <ShieldAlert className="w-4 h-4" />
-              {sidebarOpen && "FAILURE SIMULATION LAB"}
+              <span className={`whitespace-nowrap transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-70'}`}>FAILURE SIMULATION LAB</span>
             </span>
-            {sidebarOpen && (
               <span className={`transition-transform duration-200 text-slate-500 ${simLabOpen ? 'rotate-180' : ''}`}>▾</span>
-            )}
           </button>
 
-          {sidebarOpen && simLabOpen && (
+          {simLabOpen && (
             <div className="space-y-2 text-xs mt-3 pt-3 border-t border-slate-800">
               <div>
                 <label className="text-slate-400 block mb-1">Target Asset</label>
