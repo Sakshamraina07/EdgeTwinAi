@@ -1353,7 +1353,7 @@ export default function App() {
               </div>
 
               {/* Layout Split: Floorplan on left, inspection panel on right */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-6 items-start">
                 
                 {/* LEFT COLUMN: Floorplan & Executive Panels */}
                 <div className="col-span-2 flex flex-col gap-6">
@@ -1509,7 +1509,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                  
+
                 {/* 2. Executive Business & Proactive Advisor Panel */}
                 <div className="grid grid-cols-3 gap-6 shrink-0">
                   {/* Business Impact Projections */}
@@ -1584,7 +1584,7 @@ export default function App() {
                 </div>
 
                 {/* AI Decision Center & Explainable Inspection Panel */}
-                <div className="col-span-1 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar" style={{maxHeight: '660px'}}>
+                <div className="col-span-1 flex flex-col gap-5 overflow-y-auto pr-1 custom-scrollbar sticky top-0" style={{maxHeight: 'calc(100vh - 180px)'}}>
                   {telemetry[selectedMachine] ? (
                     <>
                       {/* AI Executive Advisor & Financial Justification Panel */}
