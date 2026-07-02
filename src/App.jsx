@@ -1151,102 +1151,6 @@ export default function App() {
                     <span className="text-slate-300 font-mono">Live WebSocket Broadcast</span>
                   </div>
                 </div>
-
-                {/* PRESENTER WALKTHROUGH GUIDE CONTROLLER */}
-                {walkthroughStep === 0 ? (
-                  <div className="bg-[#0b1329] border border-emerald-500/20 rounded-xl px-5 py-3 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-                      <span className="font-semibold text-slate-300">EdgeTwin AI Presenter Mode:</span>
-                      <span className="text-slate-400">Interactive walkthrough for customer pitching &amp; client demonstrations.</span>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        resetAllLocal();
-                        setWalkthroughStep(1);
-                        setActiveTab("dashboard");
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-4 py-1.5 rounded font-bold uppercase tracking-wider transition text-[10px]"
-                    >
-                      START WALKTHROUGH
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-[#0a1528] border border-indigo-500/30 rounded-xl px-5 py-2 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
-                      <span className="font-semibold text-indigo-300">WALKTHROUGH ACTIVE —</span>
-                      <span className="text-slate-300">
-                        {walkthroughStep === 1 && "1. Baseline Operations (Healthy Factory)"}
-                        {walkthroughStep === 2 && "2. Anomaly Detected — Financial Alert"}
-                        {walkthroughStep === 3 && "3. Explainable AI & Options Comparison"}
-                        {walkthroughStep === 4 && "4. Approval & Dispatch"}
-                        {walkthroughStep === 5 && "5. Autonomous Scheduler Integration"}
-                        {walkthroughStep === 6 && "6. Factory Recovery & Profit Realization"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {walkthroughStep === 1 && (
-                        <button onClick={() => { injectAnomalyLocal("M3", "vibration"); setWalkthroughStep(2); }} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Inject Fault (M3)</button>
-                      )}
-                      {walkthroughStep === 2 && (
-                        <button onClick={() => { setSelectedMachine("M3"); setWalkthroughStep(3); }} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">View M3 Diagnosis</button>
-                      )}
-                      {walkthroughStep === 3 && (
-                        <button onClick={() => setWalkthroughStep(4)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Compare Actions</button>
-                      )}
-                      {walkthroughStep === 4 && (
-                        <button onClick={() => approveRecommendation("M3")} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider glow-emerald">Auto-Approve Plan</button>
-                      )}
-                      {walkthroughStep === 5 && (
-                        <button onClick={() => { completeTaskLocal(schedule.length > 0 ? schedule[0].id : "slot_m3"); setWalkthroughStep(6); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Complete Task</button>
-                      )}
-                      {walkthroughStep === 6 && (
-                        <button onClick={() => resetAllLocal()} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase tracking-wider">Reset &amp; Restart</button>
-                      )}
-                      <button onClick={() => resetAllLocal()} className="text-slate-400 hover:text-rose-400 text-[10px] font-bold uppercase transition">Quit</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* AI EXECUTIVE SUMMARY BANNER */}
-                {(() => {
-                  const criticalMachines = Object.values(telemetry).filter(m => m.status === "critical");
-                  const warningMachines = Object.values(telemetry).filter(m => m.status === "warning");
-                  const isCritical = criticalMachines.length > 0;
-                  let bannerClass = "bg-emerald-950/40 border-emerald-500/20 text-emerald-200";
-                  let iconClass = "text-emerald-400";
-                  let message = "Health: 99% — No critical assets require attention.";
-                  let confidence = "98%";
-                  if (isCritical) {
-                    bannerClass = "bg-rose-950/60 border-rose-500/30 text-rose-200";
-                    iconClass = "text-rose-400";
-                    message = `Health: ${Math.round(100 - (criticalMachines.length * 15))}% — ${criticalMachines.length} critical asset(s) need attention. Potential loss: ₹2.8 lakh. Maintenance plan ready.`;
-                    confidence = "94%";
-                  } else if (warningMachines.length > 0) {
-                    bannerClass = "bg-amber-950/40 border-amber-500/20 text-amber-200";
-                    iconClass = "text-amber-400";
-                    message = `Health: ${Math.round(100 - (warningMachines.length * 5))}% — ${warningMachines.length} asset(s) show early wear.`;
-                    confidence = "91%";
-                  }
-                  return (
-                    <div className={`border rounded-xl px-5 py-3 flex items-center justify-between text-xs font-semibold tracking-wide ${bannerClass}`}>
-                      <div className="flex items-center gap-2">
-                        <Sparkles className={`w-4 h-4 ${iconClass}`} />
-                        <span><strong className="uppercase tracking-widest opacity-80">AI Executive Summary:</strong> {message}</span>
-                      </div>
-                      <div className="flex gap-4 items-center">
-                        <span className="opacity-80">Confidence: <strong className="text-white text-sm ml-1">{confidence}</strong></span>
-                        {isCritical && (
-                          <button onClick={() => { setActiveTab("planner"); optimizeSchedule(); }} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold uppercase tracking-wider transition active:scale-95 text-[10px]">
-                            Approve Maintenance Plan
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
                 {/* AI Value Generated Today - Premium KPI Card */}
                 <div className="glass-panel border border-emerald-900/30 rounded-xl p-3 relative overflow-hidden bg-gradient-to-r from-emerald-950/20 to-slate-900/60">
                   <div className="absolute top-0 right-0 p-2 opacity-10">
@@ -1438,6 +1342,66 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* PRESENTER WALKTHROUGH GUIDE CONTROLLER */}
+                {walkthroughStep === 0 ? (
+                  <div className="bg-[#0b1329] border border-emerald-500/20 rounded-xl px-5 py-3 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span className="font-semibold text-slate-300">EdgeTwin AI Presenter Mode:</span>
+                      <span className="text-slate-400">Interactive walkthrough for customer pitching &amp; client demonstrations.</span>
+                    </div>
+                    <button onClick={() => { resetAllLocal(); setWalkthroughStep(1); setActiveTab("dashboard"); }} className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-4 py-1.5 rounded font-bold uppercase tracking-wider transition text-[10px]">
+                      START WALKTHROUGH
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-[#0a1528] border border-indigo-500/30 rounded-xl px-5 py-2 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+                      <span className="font-semibold text-indigo-300">WALKTHROUGH ACTIVE —</span>
+                      <span className="text-slate-300">
+                        {walkthroughStep === 1 && "1. Baseline Operations"}
+                        {walkthroughStep === 2 && "2. Anomaly Detected"}
+                        {walkthroughStep === 3 && "3. Explainable AI & Options"}
+                        {walkthroughStep === 4 && "4. Approval & Dispatch"}
+                        {walkthroughStep === 5 && "5. Scheduler Integration"}
+                        {walkthroughStep === 6 && "6. Factory Recovery"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {walkthroughStep === 1 && <button onClick={() => { injectAnomalyLocal("M3", "vibration"); setWalkthroughStep(2); }} className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Inject Fault</button>}
+                      {walkthroughStep === 2 && <button onClick={() => { setSelectedMachine("M3"); setWalkthroughStep(3); }} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">View M3</button>}
+                      {walkthroughStep === 3 && <button onClick={() => setWalkthroughStep(4)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Compare</button>}
+                      {walkthroughStep === 4 && <button onClick={() => approveRecommendation("M3")} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase glow-emerald">Approve</button>}
+                      {walkthroughStep === 5 && <button onClick={() => { completeTaskLocal(schedule.length > 0 ? schedule[0].id : "slot_m3"); setWalkthroughStep(6); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Complete</button>}
+                      {walkthroughStep === 6 && <button onClick={() => resetAllLocal()} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Reset</button>}
+                      <button onClick={() => resetAllLocal()} className="text-slate-400 hover:text-rose-400 text-[10px] font-bold uppercase transition">Quit</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* AI EXECUTIVE SUMMARY BANNER */}
+                {(() => {
+                  const criticalMachines = Object.values(telemetry).filter(m => m.status === "critical");
+                  const warningMachines = Object.values(telemetry).filter(m => m.status === "warning");
+                  const isCritical = criticalMachines.length > 0;
+                  let bannerClass = "bg-emerald-950/40 border-emerald-500/20 text-emerald-200";
+                  let iconClass = "text-emerald-400";
+                  let message = "Health: 99% — No critical assets require attention.";
+                  let confidence = "98%";
+                  if (isCritical) { bannerClass = "bg-rose-950/60 border-rose-500/30 text-rose-200"; iconClass = "text-rose-400"; message = `Health: ${Math.round(100 - (criticalMachines.length * 15))}% — ${criticalMachines.length} critical asset(s) need attention. Potential loss: ₹2.8 lakh.`; confidence = "94%"; }
+                  else if (warningMachines.length > 0) { bannerClass = "bg-amber-950/40 border-amber-500/20 text-amber-200"; iconClass = "text-amber-400"; message = `Health: ${Math.round(100 - (warningMachines.length * 5))}% — ${warningMachines.length} asset(s) show early wear.`; confidence = "91%"; }
+                  return (
+                    <div className={`border rounded-xl px-5 py-3 flex items-center justify-between text-xs font-semibold ${bannerClass}`}>
+                      <div className="flex items-center gap-2"><Sparkles className={`w-4 h-4 ${iconClass}`} /><span><strong className="uppercase tracking-widest opacity-80">AI Executive Summary:</strong> {message}</span></div>
+                      <div className="flex gap-4 items-center">
+                        <span className="opacity-80">Confidence: <strong className="text-white ml-1">{confidence}</strong></span>
+                        {isCritical && <button onClick={() => { setActiveTab("planner"); optimizeSchedule(); }} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold uppercase tracking-wider transition active:scale-95 text-[10px]">Approve Maintenance Plan</button>}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 2. Executive Business & Proactive Advisor Panel */}
                 <div className="grid grid-cols-3 gap-6 shrink-0">
