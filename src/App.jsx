@@ -148,7 +148,21 @@ export default function App() {
     }
     
     const isSelected = selectedMachine === mid;
-    
+
+    // Derive concise fault reason label for floorplan badge
+    let faultLabel = "";
+    if (status !== "healthy") {
+      const vib  = data.metrics?.vibration   || 0;
+      const temp = data.metrics?.temperature || 0;
+      const load = data.metrics?.load        || 0;
+      if      (vib  > 0.5)           faultLabel = "BEARING WEAR";
+      else if (vib  > 0.25)          faultLabel = "HIGH VIBRATION";
+      else if (temp > 98)            faultLabel = "HIGH TEMP";
+      else if (load > 90)            faultLabel = "MOTOR OVERLOAD";
+      else if (status === "critical") faultLabel = "CRITICAL FAULT";
+      else                           faultLabel = "INSPECT REQUIRED";
+    }
+
     return (
       <g 
         key={mid}
@@ -221,6 +235,19 @@ export default function App() {
         >
           {name}
         </text>
+        {faultLabel && (
+          <text
+            x={cx}
+            y={cy + 70}
+            textAnchor="middle"
+            fill={status === "critical" ? "#f43f5e" : "#f59e0b"}
+            fontSize="8"
+            fontWeight="700"
+            letterSpacing="0.08em"
+          >
+            ⚠ {faultLabel}
+          </text>
+        )}
       </g>
     );
   };
@@ -1105,6 +1132,36 @@ export default function App() {
     M6: "Hydraulic Press (M6)"
   };
 
+  // --- Dashboard-wide derived values (recomputed on every render) ---
+  const factoryHealthPct = Object.values(telemetry).reduce(
+    (sum, m) => sum + Math.max(0, 100 - (m.ai_prediction?.failure_probability ?? 0)), 0
+  ) / Math.max(1, Object.keys(telemetry).length);
+
+  const topRiskEntry = Object.entries(telemetry)
+    .map(([mid, m]) => ({ mid, fp: m.ai_prediction?.failure_probability ?? 0, status: m.status }))
+    .sort((a, b) => b.fp - a.fp)[0] || { mid: "M1", fp: 0, status: "healthy" };
+
+  // Per-machine financial constants referenced by advisor panel and executive ribbon
+  const advisorData = {
+    M1: { netSavings: 265000, potentialLoss: 280000, maintCost: 15000, downtimeHrs: 3.0, prodSaved: 70000  },
+    M2: { netSavings: 335000, potentialLoss: 360000, maintCost: 25000, downtimeHrs: 4.0, prodSaved: 120000 },
+    M3: { netSavings: 417000, potentialLoss: 435000, maintCost: 18000, downtimeHrs: 6.0, prodSaved: 190000 },
+    M4: { netSavings: 150000, potentialLoss: 200000, maintCost: 10000, downtimeHrs: 2.0, prodSaved: 0      },
+    M5: { netSavings: 140000, potentialLoss: 180000, maintCost: 8000,  downtimeHrs: 1.5, prodSaved: 0      },
+    M6: { netSavings: 200000, potentialLoss: 220000, maintCost: 20000, downtimeHrs: 2.5, prodSaved: 0      },
+  };
+  const selAdv    = advisorData[selectedMachine] || advisorData["M3"];
+  const selStatus = telemetry[selectedMachine]?.status || "healthy";
+  const selRUL    = telemetry[selectedMachine]?.ai_prediction?.rul_hours ?? 980;
+  const decisionWindowHrs = Math.max(0, selRUL - 6);
+  const decisionWindowH   = Math.floor(decisionWindowHrs);
+  const decisionWindowM   = Math.round((decisionWindowHrs % 1) * 60);
+  const recommendedByTime = new Date(Date.now() + decisionWindowHrs * 3600000)
+    .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const selConfidence      = selStatus === "critical" ? 94 : selStatus === "warning" ? 91 : 98;
+  const selConfidenceLabel = selStatus === "critical" ? "High Confidence" : selStatus === "warning" ? "High Confidence" : "Very High Confidence";
+  const selROI             = (selAdv.netSavings / selAdv.maintCost).toFixed(1);
+
   return (
     <div className="flex h-screen overflow-hidden text-slate-100 font-sans">
       {/* SIDEBAR NAVIGATION */}
@@ -1162,15 +1219,15 @@ export default function App() {
         {/* Divider */}
         <div className="mx-3 border-t border-slate-800/60 my-2" />
 
-        {/* Failure Simulation Lab */}
+        {/* AI Scenario Simulator */}
         <div className="mx-3 mb-3 rounded-xl bg-slate-900/60 border border-slate-800">
           <button
             onClick={() => setSimLabOpen(prev => !prev)}
-            className="w-full flex items-center justify-between px-3 py-3 text-xs font-semibold text-rose-400 font-display"
+            className="w-full flex items-center justify-between px-3 py-3 text-xs font-semibold text-indigo-400 font-display"
           >
             <span className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap">FAILURE SIMULATION LAB</span>
+              <span className="whitespace-nowrap">AI SCENARIO SIMULATOR</span>
             </span>
             <span className={`transition-transform duration-200 text-white text-base leading-none ${simLabOpen ? 'rotate-180' : ''}`}>▾</span>
           </button>
@@ -1203,10 +1260,10 @@ export default function App() {
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={injectAnomaly} className="flex-1 bg-amber-600/80 hover:bg-amber-600 active:scale-95 text-white font-medium py-1.5 rounded flex items-center justify-center gap-1 transition text-[11px]">
-                  <Play className="w-3 h-3 fill-white" /><span>Inject Fault</span>
+                  <Play className="w-3 h-3 fill-white" /><span>Simulate Failure</span>
                 </button>
                 <button onClick={resetAllMachines} className="flex-1 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white border border-slate-600 font-medium py-1.5 rounded flex items-center justify-center gap-1 transition text-[11px]">
-                  <RefreshCw className="w-3 h-3" /><span>Reset Twin</span>
+                  <RefreshCw className="w-3 h-3" /><span>Restore Factory</span>
                 </button>
               </div>
             </div>
@@ -1220,11 +1277,17 @@ export default function App() {
         {/* TOP STATUS BAR */}
         <header className="h-16 border-b border-slate-800/80 bg-[#090d16]/90 px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs uppercase tracking-wider font-mono">Factory Status:</span>
-              <span className="text-emerald-400 font-semibold text-xs tracking-wider flex items-center gap-1">
-                <CheckCircle className="w-4 h-4" /> ONLINE
-              </span>
+            <div className="flex items-center gap-3">
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse status-transition ${factoryHealthPct >= 85 ? 'bg-emerald-500' : factoryHealthPct >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-slate-500 text-[10px] uppercase tracking-wider font-mono">Factory Health:</span>
+                  <span className={`font-bold text-sm font-mono status-transition ${factoryHealthPct >= 85 ? 'text-emerald-400' : factoryHealthPct >= 60 ? 'text-amber-400' : 'text-rose-400'}`}>
+                    {factoryHealthPct.toFixed(1)}%
+                  </span>
+                </div>
+                <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest leading-none">Overall Operational Availability</p>
+              </div>
             </div>
             
             <div className="h-4 w-px bg-slate-800"></div>
@@ -1268,15 +1331,72 @@ export default function App() {
                     <span className="text-slate-300 font-mono">Live WebSocket Broadcast</span>
                   </div>
                 </div>
-                {/* AI Value Generated Today - Premium KPI Card */}
-                <div className="glass-panel border border-emerald-900/30 rounded-xl p-3 relative overflow-hidden bg-gradient-to-r from-emerald-950/20 to-slate-900/60">
+                {/* Executive AI Summary Ribbon */}
+                {(() => {
+                  const topM    = topRiskEntry;
+                  const topAdv  = advisorData[topM.mid] || advisorData["M3"];
+                  const topName = machineNamesMap[topM.mid] || topM.mid;
+                  const topRec  = telemetry[topM.mid]?.ai_prediction?.recommendation || "Continue Normal Operations";
+                  const isCrit  = topM.status === "critical";
+                  const isWarn  = topM.status === "warning";
+                  const bg      = isCrit ? "bg-rose-950/50 border-rose-500/25"    : isWarn ? "bg-amber-950/40 border-amber-500/20"    : "bg-emerald-950/30 border-emerald-500/15";
+                  const accent  = isCrit ? "text-rose-400"   : isWarn ? "text-amber-400"   : "text-emerald-400";
+                  const conf    = isCrit ? "94%"  : isWarn ? "91%"  : "98%";
+                  return (
+                    <div className={`border rounded-xl px-4 py-2.5 ${bg}`}>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Sparkles className={`w-3 h-3 ${accent}`} />
+                          <span className={`text-[9px] font-bold uppercase tracking-widest font-mono ${accent}`}>AI Executive Summary</span>
+                        </div>
+                        <div className="h-3 w-px bg-slate-700 shrink-0" />
+                        <div className="flex items-center gap-5 flex-1 min-w-0 flex-wrap">
+                          <div>
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Priority Asset</span>
+                            <span className={`text-[11px] font-bold ${accent}`}>{topName}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Recommended Action</span>
+                            <span className="text-[11px] font-semibold text-white truncate block">{topRec}</span>
+                          </div>
+                          <div className="shrink-0">
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Net Business Gain</span>
+                            <span className="text-[11px] font-bold text-emerald-400">↑ ₹{(topAdv.netSavings / 100000).toFixed(2)} Lakh</span>
+                          </div>
+                          <div className="shrink-0">
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Loss if Ignored</span>
+                            <span className="text-[11px] font-bold text-rose-400">₹{(topAdv.potentialLoss / 100000).toFixed(2)} Lakh</span>
+                          </div>
+                          <div className="shrink-0">
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Decision Confidence</span>
+                            <span className={`text-[11px] font-bold ${accent}`}>{conf}</span>
+                          </div>
+                        </div>
+                        {(isCrit || isWarn) && (
+                          <button
+                            onClick={() => { setActiveTab("planner"); optimizeSchedule(); }}
+                            className={`shrink-0 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition active:scale-95 text-white ${isCrit ? "bg-rose-600 hover:bg-rose-500" : "bg-amber-600 hover:bg-amber-500"}`}
+                          >
+                            Approve Plan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* AI Value Generated — Business Value Through AI Decisions */}
+                <div className="glass-panel border border-emerald-900/30 rounded-xl p-3 relative overflow-hidden bg-gradient-to-r from-emerald-950/20 to-slate-900/60 card-hover-lift">
                   <div className="absolute top-0 right-0 p-2 opacity-10">
                     <TrendingUp className="w-16 h-16 text-emerald-400" />
                   </div>
                   <div className="flex items-center gap-6 relative z-10">
-                    <h3 className="text-xs uppercase tracking-widest text-emerald-400 font-bold flex items-center gap-1.5 w-48 shrink-0">
-                      <Sparkles className="w-3.5 h-3.5" /> AI Value Generated
-                    </h3>
+                    <div className="w-48 shrink-0">
+                      <h3 className="text-xs uppercase tracking-widest text-emerald-400 font-bold flex items-center gap-1.5 mb-0.5">
+                        <Sparkles className="w-3.5 h-3.5" /> AI Value Generated
+                      </h3>
+                      <p className="text-[9px] text-slate-500 leading-tight">Business Value Generated Through AI Decisions</p>
+                    </div>
                     <div className="flex-1 grid grid-cols-4 gap-4">
                       <div>
                         <span className="text-[10px] text-slate-400 block mb-0.5 uppercase tracking-wider">Estimated Savings</span>
@@ -1298,6 +1418,10 @@ export default function App() {
                         <span className="text-xl font-display font-bold text-emerald-400 tracking-tight">{failuresPrevented}</span>
                       </div>
                     </div>
+                    <div className="shrink-0 flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <span className="text-[9px] font-mono text-slate-400">Last Updated: <span className="text-emerald-400 font-semibold">Real-time</span></span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1310,9 +1434,25 @@ export default function App() {
                   
                   {/* Visual SVG floor plan layout */}
                   <div className="glass-panel rounded-2xl p-6 border border-slate-800/60 relative overflow-hidden flex flex-col justify-between flex-1 min-h-[460px]">
+                    {/* Live System Indicator Chips */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-500/20 rounded-full px-2.5 py-1">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-mono font-semibold text-emerald-400 uppercase tracking-wider">Edge AI · ACTIVE</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 status-transition ${wsConnected ? 'bg-emerald-950/30 border-emerald-500/20' : 'bg-amber-950/30 border-amber-500/20'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full animate-pulse status-transition ${wsConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <span className={`text-[9px] font-mono font-semibold uppercase tracking-wider status-transition ${wsConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          WebSocket · {wsConnected ? 'CONNECTED' : 'RECONNECTING'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-indigo-950/30 border border-indigo-500/20 rounded-full px-2.5 py-1">
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+                        <span className="text-[9px] font-mono font-semibold text-indigo-400 uppercase tracking-wider">Decision Engine · RUNNING</span>
+                      </div>
+                    </div>
                     <div className="flex justify-between items-center mb-4">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Interactive Floorplan & conveyor Routing</div>
-                      
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">Interactive Floorplan &amp; Conveyor Routing</div>
                       {/* Floorplan legend */}
                       <div className="flex gap-4 text-xs">
                         <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
@@ -1498,24 +1638,43 @@ export default function App() {
                   </div>
                 )}
 
-                {/* AI EXECUTIVE SUMMARY BANNER */}
+                {/* 11A: Current Operational Objective + 11B: Decision Window */}
                 {(() => {
-                  const criticalMachines = Object.values(telemetry).filter(m => m.status === "critical");
-                  const warningMachines = Object.values(telemetry).filter(m => m.status === "warning");
-                  const isCritical = criticalMachines.length > 0;
-                  let bannerClass = "bg-emerald-950/40 border-emerald-500/20 text-emerald-200";
-                  let iconClass = "text-emerald-400";
-                  let message = "Health: 99% — No critical assets require attention.";
-                  let confidence = "98%";
-                  if (isCritical) { bannerClass = "bg-rose-950/60 border-rose-500/30 text-rose-200"; iconClass = "text-rose-400"; message = `Health: ${Math.round(100 - (criticalMachines.length * 15))}% — ${criticalMachines.length} critical asset(s) need attention. Potential loss: ₹2.8 lakh.`; confidence = "94%"; }
-                  else if (warningMachines.length > 0) { bannerClass = "bg-amber-950/40 border-amber-500/20 text-amber-200"; iconClass = "text-amber-400"; message = `Health: ${Math.round(100 - (warningMachines.length * 5))}% — ${warningMachines.length} asset(s) show early wear.`; confidence = "91%"; }
+                  const critCount = Object.values(telemetry).filter(m => m.status === "critical").length;
+                  const warnCount = Object.values(telemetry).filter(m => m.status === "warning").length;
+                  let objective = "Monitor & Optimize Factory Performance for Maximum Efficiency";
+                  let objAccent = "text-emerald-300";
+                  let objBg    = "bg-emerald-950/25 border-emerald-500/15";
+                  if (critCount > 0) {
+                    objective = `Maintain Production While Preventing Critical Failure — ${machineNamesMap[topRiskEntry.mid]}`;
+                    objAccent = "text-rose-300";
+                    objBg    = "bg-rose-950/25 border-rose-500/15";
+                  } else if (warnCount > 0) {
+                    objective = "Schedule Preventive Maintenance to Avoid Unexpected Production Downtime";
+                    objAccent = "text-amber-300";
+                    objBg    = "bg-amber-950/25 border-amber-500/15";
+                  }
                   return (
-                    <div className={`border rounded-xl px-5 py-3 flex items-center justify-between text-xs font-semibold ${bannerClass}`}>
-                      <div className="flex items-center gap-2"><Sparkles className={`w-4 h-4 ${iconClass}`} /><span><strong className="uppercase tracking-widest opacity-80">AI Executive Summary:</strong> {message}</span></div>
-                      <div className="flex gap-4 items-center">
-                        <span className="opacity-80">Confidence: <strong className="text-white ml-1">{confidence}</strong></span>
-                        {isCritical && <button onClick={() => { setActiveTab("planner"); optimizeSchedule(); }} className="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-bold uppercase tracking-wider transition active:scale-95 text-[10px]">Approve Maintenance Plan</button>}
+                    <div className={`border rounded-xl px-4 py-2.5 flex items-center justify-between gap-4 ${objBg}`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono whitespace-nowrap shrink-0">Current Objective</span>
+                        <span className="w-px h-3 bg-slate-700 shrink-0" />
+                        <span className={`text-xs font-semibold truncate ${objAccent}`}>{objective}</span>
                       </div>
+                      {(critCount > 0 || warnCount > 0) && (
+                        <div className="shrink-0 flex items-center gap-4">
+                          <div className="text-right">
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Decision Window</span>
+                            <span className="text-[11px] font-bold text-white font-mono">
+                              {String(decisionWindowH).padStart(2, "0")}h {String(decisionWindowM).padStart(2, "0")}m Remaining
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Recommended Before</span>
+                            <span className="text-[11px] font-mono text-amber-400 font-semibold">{recommendedByTime}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -1613,57 +1772,112 @@ export default function App() {
                           <div className="bg-slate-950/40 rounded-lg p-3 border border-white/5 space-y-1">
                             <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Recommended Action</span>
                             <span className="font-bold text-sm text-white block">
-                              {telemetry[selectedMachine].status === 'critical' ? 'Replace Bearing During Night Shift' : (telemetry[selectedMachine].status === 'warning' ? 'Schedule Inspection Within 48 Hours' : 'Continue Normal Operations')}
+                              {selStatus === 'critical' ? 'Replace Bearing During Night Shift' : selStatus === 'warning' ? 'Schedule Inspection Within 48 Hours' : 'Continue Normal Operations'}
                             </span>
-                            <div className="flex items-center gap-1.5 mt-2">
-                              <span className="text-[10px] text-slate-400">Risk Assessment:</span>
-                              <span className={`text-[10px] font-bold ${telemetry[selectedMachine].status === 'critical' ? 'text-rose-400' : (telemetry[selectedMachine].status === 'warning' ? 'text-amber-400' : 'text-emerald-400')}`}>
-                                {telemetry[selectedMachine].status === 'critical' ? 'CRITICAL RISK' : (telemetry[selectedMachine].status === 'warning' ? 'MEDIUM RISK' : 'LOW RISK')}
-                              </span>
+                            <div className="flex items-center justify-between mt-2 gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400">Risk Assessment:</span>
+                                <span className={`text-[10px] font-bold status-transition ${selStatus === 'critical' ? 'text-rose-400' : selStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                  {selStatus === 'critical' ? 'CRITICAL RISK' : selStatus === 'warning' ? 'MEDIUM RISK' : 'LOW RISK'}
+                                </span>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[8px] text-slate-500 block uppercase tracking-wider font-mono">Decision Confidence</span>
+                                <div className="flex items-center gap-1 justify-end">
+                                  <span className={`text-xs font-bold ${selStatus === 'critical' ? 'text-rose-400' : selStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>{selConfidence}%</span>
+                                  <span className="text-[8px] text-slate-500">· {selConfidenceLabel}</span>
+                                </div>
+                              </div>
                             </div>
+                            <p className="text-[9px] text-slate-500 italic mt-1.5 leading-relaxed border-t border-white/5 pt-1.5">
+                              This recommendation maximizes operational availability while minimizing production loss.
+                            </p>
                           </div>
 
-                          {telemetry[selectedMachine].status !== 'healthy' ? (
+                          {selStatus !== 'healthy' ? (
                             <div className="space-y-3">
                               <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-2">
                                 <span className="text-[10px] uppercase tracking-wider text-slate-400 block mb-1 font-mono">Business Justification Ledger</span>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Maintenance Cost:</span>
-                                  <span className="font-mono text-white">₹{selectedMachine === 'M3' ? '18,000' : (selectedMachine === 'M2' ? '25,000' : '15,000')}</span>
+                                  <span className="font-mono text-white">₹{selAdv.maintCost.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Failure Cost if Ignored:</span>
-                                  <span className="font-mono text-white">₹{selectedMachine === 'M3' ? '2,45,000' : (selectedMachine === 'M2' ? '2,40,000' : '2,10,000')}</span>
+                                  <span className="font-mono text-white">₹{selectedMachine === 'M3' ? '2,45,000' : selectedMachine === 'M2' ? '2,40,000' : '2,10,000'}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Estimated Production Loss:</span>
-                                  <span className="font-mono text-rose-400">₹{selectedMachine === 'M3' ? '1,90,000' : (selectedMachine === 'M2' ? '1,20,000' : '70,000')}</span>
+                                  <span className="font-mono text-rose-400">{selAdv.prodSaved > 0 ? `₹${selAdv.prodSaved.toLocaleString()}` : '—'}</span>
                                 </div>
-                                <div className="pt-2 border-t border-slate-850 flex justify-between items-center">
-                                  <span className="text-xs font-semibold text-white">Estimated Net Savings:</span>
-                                  <span className="font-mono text-emerald-400 font-bold text-base">₹{selectedMachine === 'M3' ? '4,17,000' : (selectedMachine === 'M2' ? '3,35,000' : '2,65,000')}</span>
+                                <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
+                                  <span className="text-xs font-semibold text-emerald-300">Net Business Gain</span>
+                                  <span className="font-mono text-emerald-400 font-bold text-base">↑ ₹{selAdv.netSavings.toLocaleString()}</span>
                                 </div>
                               </div>
-                              
+
+                              {/* Business Impact Summary */}
+                              <div className="bg-slate-950/30 rounded-xl p-3 border border-slate-800/60 grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                  <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Downtime Prevented</span>
+                                  <span className="text-xs font-bold text-white">{selAdv.downtimeHrs.toFixed(1)} hrs</span>
+                                </div>
+                                <div>
+                                  <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Production Saved</span>
+                                  <span className="text-xs font-bold text-emerald-400">{selAdv.prodSaved > 0 ? `₹${selAdv.prodSaved.toLocaleString()}` : '—'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Estimated ROI</span>
+                                  <span className="text-xs font-bold text-white">{selROI}×</span>
+                                </div>
+                              </div>
+
                               <div className="flex gap-2">
                                 {approvedMachines.has(selectedMachine) ? (
                                   <div className="flex-1 bg-emerald-950/60 border border-emerald-700/50 text-emerald-400 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5">
                                     <CheckCircle className="w-3.5 h-3.5" /> Dispatched ✓
                                   </div>
                                 ) : (
-                                  <button 
+                                  <button
                                     onClick={() => approveRecommendation(selectedMachine)}
                                     className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 glow-emerald"
                                   >
                                     <CheckCircle className="w-3.5 h-3.5" /> Approve Plan
                                   </button>
                                 )}
-                                <button 
+                                <button
                                   onClick={() => setActiveTab("opportunities")}
                                   className="flex-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white py-2 rounded-lg font-semibold text-xs transition border border-slate-700"
                                 >
                                   Compare Alternatives
                                 </button>
+                              </div>
+
+                              {/* 11E: Recommendation Workflow Indicator */}
+                              <div className="rounded-xl border border-slate-800/60 bg-slate-950/20 px-3 py-2.5">
+                                <div className="flex items-start justify-between gap-1">
+                                  {[
+                                    { label: "Approve\nRecommendation", done: approvedMachines.has(selectedMachine), active: !approvedMachines.has(selectedMachine) },
+                                    { label: "Auto Maintenance\nScheduling",  done: approvedMachines.has(selectedMachine), active: false },
+                                    { label: "Incident\nLogged",              done: approvedMachines.has(selectedMachine), active: false },
+                                    { label: "Factory\nRecovery",             done: false, active: false },
+                                  ].map((step, i, arr) => (
+                                    <React.Fragment key={i}>
+                                      <div className="flex flex-col items-center gap-1 flex-1 text-center">
+                                        <div
+                                          className={`w-2 h-2 rounded-full ${step.done ? 'bg-emerald-500' : step.active ? 'bg-amber-400 animate-pulse' : 'bg-slate-700'}`}
+                                          style={step.done ? { boxShadow: '0 0 6px rgba(16,185,129,0.55)' } : {}}
+                                        />
+                                        <span className={`text-[8px] font-mono leading-tight whitespace-pre-line ${step.done ? 'text-emerald-400' : step.active ? 'text-amber-400' : 'text-slate-600'}`}>
+                                          {step.label}
+                                        </span>
+                                      </div>
+                                      {i < arr.length - 1 && (
+                                        <div className={`h-px w-3 mt-1 flex-shrink-0 self-start mt-1 ${step.done ? 'bg-emerald-500/50' : 'bg-slate-800'}`} />
+                                      )}
+                                    </React.Fragment>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           ) : (
