@@ -931,9 +931,157 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, chatLoading]);
 
-  // Export report
+  // Export report — generated client-side so it works on Vercel (no backend required)
   const triggerReportExport = () => {
-    window.open("/api/report", "_blank");
+    const machineNamesLocal = {
+      M1: "CNC Mill (M1)", M2: "Injection Molder (M2)", M3: "6-Axis Robot Arm (M3)",
+      M4: "Air Compressor (M4)", M5: "Smart Conveyor (M5)", M6: "Hydraulic Press (M6)"
+    };
+
+    const avgHealth = Object.values(telemetry).reduce((sum, m) => {
+      const fp = m.ai_prediction?.failure_probability ?? 0;
+      return sum + Math.max(0, 100 - fp);
+    }, 0) / Object.keys(telemetry).length;
+
+    const machineRows = Object.entries(telemetry).map(([mid, mdata]) => {
+      const metrics = mdata.metrics || {};
+      const ai = mdata.ai_prediction || {};
+      const status = mdata.status || "healthy";
+      const statusClass = status === "critical" ? "status-red" : status === "warning" ? "status-yellow" : "status-green";
+      const health = Math.max(0, 100 - (ai.failure_probability ?? 0));
+      return `<tr>
+        <td><strong>${machineNamesLocal[mid] || mid}</strong></td>
+        <td><span class="status-badge ${statusClass}">${status.toUpperCase()}</span> (${health.toFixed(1)}%)</td>
+        <td>${metrics.temperature ?? 0} °C</td>
+        <td>${metrics.vibration ?? 0} mm/s</td>
+        <td>${metrics.load ?? 0} %</td>
+        <td>${ai.failure_probability ?? 0} %</td>
+        <td>${ai.rul_hours ?? 0} hrs</td>
+      </tr>`;
+    }).join("");
+
+    const incidentRows = incidents.length === 0
+      ? "<tr><td colspan='6' class='text-center'>No incidents logged.</td></tr>"
+      : incidents.slice(0, 15).map(inc => {
+          const badge = inc.resolved
+            ? '<span class="status-badge status-green">RESOLVED</span>'
+            : '<span class="status-badge status-red">ACTIVE</span>';
+          const timeStr = inc.timestamp ? new Date(inc.timestamp).toLocaleString() : "—";
+          const sevClass = inc.severity === "critical" ? "status-red" : "status-yellow";
+          return `<tr>
+            <td>${timeStr}</td>
+            <td>${machineNamesLocal[inc.machine_id] || inc.machine_id || "—"}</td>
+            <td>${(inc.type || "").toUpperCase()}</td>
+            <td><span class="status-badge ${sevClass}">${(inc.severity || "").toUpperCase()}</span></td>
+            <td>${inc.action_taken || "None"}</td>
+            <td>${badge}</td>
+          </tr>`;
+        }).join("");
+
+    const scheduleRows = schedule.length === 0
+      ? "<tr><td colspan='6' class='text-center'>No maintenance tasks scheduled.</td></tr>"
+      : schedule.map(slot => {
+          const timeStr = slot.scheduled_time ? new Date(slot.scheduled_time).toLocaleString() : "—";
+          const prioClass = slot.priority === "CRITICAL" ? "status-red" : slot.priority === "HIGH" ? "status-yellow" : "status-green";
+          return `<tr>
+            <td>${timeStr}</td>
+            <td>${machineNamesLocal[slot.machine_id] || slot.machine_id || "—"}</td>
+            <td>${slot.duration_mins ?? "—"} mins</td>
+            <td>${slot.required_parts || "—"}</td>
+            <td>${slot.assigned_engineer || "—"}</td>
+            <td><span class="status-badge ${prioClass}">${slot.priority || "—"}</span></td>
+          </tr>`;
+        }).join("");
+
+    const now = new Date().toLocaleString();
+    const factoryStatusClass = avgHealth > 80 ? "status-green" : "status-yellow";
+    const factoryStatusLabel = avgHealth > 80 ? "HEALTHY" : "ATTENTION NEEDED";
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>EdgeTwin AI - Executive Intelligence Report</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.5; padding: 20px; background-color: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #10b981; padding-bottom: 20px; margin-bottom: 30px; }
+    .header h1 { margin: 0; color: #064e3b; font-size: 28px; }
+    .header p { margin: 5px 0 0 0; color: #6b7280; }
+    .meta-info { text-align: right; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; background-color: #f9fafb; text-align: center; }
+    .card .title { font-size: 12px; text-transform: uppercase; color: #6b7280; font-weight: bold; margin-bottom: 5px; }
+    .card .value { font-size: 24px; font-weight: bold; color: #111827; }
+    .card .value.roi { color: #10b981; }
+    .section { margin-bottom: 40px; }
+    .section h2 { font-size: 18px; color: #0f172a; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 15px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    th { background-color: #f3f4f6; color: #374151; font-weight: 600; }
+    .status-badge { display: inline-block; padding: 2px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; }
+    .status-green { background-color: #d1fae5; color: #065f46; }
+    .status-yellow { background-color: #fef3c7; color: #92400e; }
+    .status-red { background-color: #fee2e2; color: #991b1b; }
+    .text-center { text-align: center; }
+    .print-btn { background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; float: right; margin-bottom: 20px; }
+    @media print { .print-btn { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Print / Export PDF</button>
+  <div class="header">
+    <div>
+      <h1>EdgeTwin AI &bull; Executive Intelligence Report</h1>
+      <p>Predictive Maintenance Analytics &amp; ROI Justification</p>
+    </div>
+    <div class="meta-info">
+      <strong>Date:</strong> ${now}<br>
+      <strong>Factory Status:</strong> <span class="status-badge ${factoryStatusClass}">${factoryStatusLabel}</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="title">Cost Saved Today</div><div class="value roi">&#x20B9;${(financials.cost_saved || 0).toLocaleString()}</div></div>
+    <div class="card"><div class="title">Prevented Downtime</div><div class="value">${financials.downtime_prevented ?? 0} hrs</div></div>
+    <div class="card"><div class="title">Energy Conserved</div><div class="value">${financials.energy_saved ?? 0} kWh</div></div>
+    <div class="card"><div class="title">Factory Health Index</div><div class="value">${avgHealth.toFixed(1)}%</div></div>
+  </div>
+
+  <div class="section">
+    <h2>1. Live Asset Status &amp; Wear Analytics</h2>
+    <table>
+      <thead><tr><th>Asset Name</th><th>Overall Health</th><th>Temp</th><th>Vibration</th><th>Load</th><th>Failure Probability</th><th>Est. RUL</th></tr></thead>
+      <tbody>${machineRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>2. Production-Aware Maintenance Calendar</h2>
+    <table>
+      <thead><tr><th>Scheduled Slot</th><th>Asset</th><th>Est. Duration</th><th>Required Spares</th><th>Assigned Engineer</th><th>Priority</th></tr></thead>
+      <tbody>${scheduleRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>3. Active &amp; Resolved Incidents Log (Last 15)</h2>
+    <table>
+      <thead><tr><th>Time Detected</th><th>Machine</th><th>Incident Type</th><th>Severity</th><th>Action Details</th><th>Status</th></tr></thead>
+      <tbody>${incidentRows}</tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:50px;text-align:center;color:#9ca3af;font-size:11px;border-top:1px solid #f3f4f6;padding-top:15px;">
+    Report generated by EdgeTwin AI. Data sourced from live digital twin state.
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    // Revoke the object URL after the tab has loaded to free memory
+    if (win) win.addEventListener("load", () => URL.revokeObjectURL(url), { once: true });
   };
 
   const getMachineColor = (status) => {
