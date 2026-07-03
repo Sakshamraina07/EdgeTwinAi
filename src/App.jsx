@@ -1332,6 +1332,10 @@ export default function App() {
                 </div>
                 {/* Executive AI Summary Ribbon */}
                 {(() => {
+                  const topM    = topRiskEntry;
+                  const topAdv  = advisorData[topM.mid] || advisorData["M3"];
+                  const topName = machineNamesMap[topM.mid] || topM.mid;
+                  const topRec  = telemetry[topM.mid]?.ai_prediction?.recommendation || "Continue Normal Operations";
                   const isCrit  = topM.status === "critical";
                   const isWarn  = topM.status === "warning";
                   const borderClass = isCrit ? "border-rose-900/40" : isWarn ? "border-amber-900/40" : "border-slate-800";
