@@ -1165,6 +1165,7 @@ export default function App() {
     const text = typeof queryText === 'string' ? queryText : chatQuery;
     if (!text.trim()) return;
 
+    setChatOpen(true);
     setChatHistory(prev => [...prev, { sender: "user", text }]);
     setChatQuery("");
     setChatLoading(true);
