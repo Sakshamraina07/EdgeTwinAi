@@ -57,6 +57,17 @@ export default function App() {
     M6: { name: "Hydraulic Press (M6)", plannedCost: 20000, failureRepairCost: 220000, prodLossRate: 90000, downtimeHrs: 5.0, potentialLoss: 670000, netSavings: 650000, rom: 3250, powerKw: 40.0, machine: "Hydraulic Press", subsystem: "Hydraulic Pressure Valve Blocks", component: "Seal Rings", rootCause: "Pressure seal rings wear", confidence: 89 }
   };
   
+  // Maintenance Knowledge Base (Enterprise Component Cost & Time Data)
+  const MAINTENANCE_KNOWLEDGE_BASE = {
+    "Main Spindle Bearings": { spares: 8500, labour: 120, hours: 8, severityMultiplier: { Low: 1.0, Medium: 1.2, High: 1.5 } },
+    "Harmonic Drive Bearing": { spares: 12000, labour: 150, hours: 10, severityMultiplier: { Low: 1.0, Medium: 1.2, High: 1.6 } },
+    "Cylinder Piston Seals": { spares: 3000, labour: 90, hours: 6, severityMultiplier: { Low: 1.0, Medium: 1.1, High: 1.3 } },
+    "Discharge Valve Gasket": { spares: 800, labour: 85, hours: 4, severityMultiplier: { Low: 1.0, Medium: 1.1, High: 1.2 } },
+    "Tensioner Belt": { spares: 400, labour: 75, hours: 2, severityMultiplier: { Low: 1.0, Medium: 1.0, High: 1.2 } },
+    "Seal Rings": { spares: 2500, labour: 95, hours: 5, severityMultiplier: { Low: 1.0, Medium: 1.1, High: 1.4 } },
+    "Default": { spares: 5000, labour: 100, hours: 6, severityMultiplier: { Low: 1.0, Medium: 1.2, High: 1.5 } }
+  };
+  
   // Real-time state
   // Default mock telemetry — ensures charts & UI work on Vercel (no backend needed)
   const defaultTelemetry = {
@@ -75,6 +86,17 @@ export default function App() {
     hours_recovered: 12.0
   });
   const [validationStates, setValidationStates] = useState({});
+  const [inspectionForms, setInspectionForms] = useState({});
+  const [aiAccuracyStats, setAiAccuracyStats] = useState({
+    predictionsVerified: 128,
+    correctPredictions: 118,
+    incorrectPredictions: 10,
+    currentAccuracy: 92.1,
+    learningTrend: "+1.2%",
+    lastValidation: "Correct",
+    lastUpdated: "2 mins ago"
+  });
+  const [validatedFinancials, setValidatedFinancials] = useState({});
   const [isOptimizingPlan, setIsOptimizingPlan] = useState(false);
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [failuresPrevented, setFailuresPrevented] = useState(4);
@@ -920,6 +942,99 @@ export default function App() {
       setWalkthroughStep(5);
       // Don't auto-navigate — let user see the Dispatched confirmation first
     }
+  };
+
+  const handleInspectionChange = (mid, field, value) => {
+    setInspectionForms(prev => ({
+      ...prev,
+      [mid]: {
+        ...(prev[mid] || { evidence: [], correct: 'yes', severity: 'Medium' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleEvidenceToggle = (mid, evidenceItem) => {
+    setInspectionForms(prev => {
+      const form = prev[mid] || { evidence: [], correct: 'yes', severity: 'Medium' };
+      const evidence = form.evidence || [];
+      if (evidence.includes(evidenceItem)) {
+        return { ...prev, [mid]: { ...form, evidence: evidence.filter(e => e !== evidenceItem) } };
+      } else {
+        return { ...prev, [mid]: { ...form, evidence: [...evidence, evidenceItem] } };
+      }
+    });
+  };
+
+  const confirmInspection = (mid) => {
+    const form = inspectionForms[mid] || { correct: 'yes', severity: 'Medium' };
+    const isCorrect = form.correct === 'yes';
+    const baseItem = MASTER_FINANCIAL_BASES[mid];
+    
+    const actualComponent = isCorrect ? baseItem.component : (form.actualComponent || baseItem.component);
+    const severity = form.severity || "Medium";
+    
+    const kbEntry = MAINTENANCE_KNOWLEDGE_BASE[actualComponent] || MAINTENANCE_KNOWLEDGE_BASE["Default"];
+    const mult = kbEntry.severityMultiplier[severity] || 1.2;
+    
+    const sparesCost = kbEntry.spares * mult;
+    const labourCost = kbEntry.labour * kbEntry.hours * mult;
+    const maintCost = sparesCost + labourCost;
+    
+    const downtimeHrs = kbEntry.hours * mult;
+    const prodSaved = baseItem.prodLossRate * downtimeHrs;
+    const potentialLoss = baseItem.potentialLoss;
+    const netSavings = potentialLoss - maintCost;
+
+    setValidatedFinancials(prev => ({
+      ...prev,
+      [mid]: {
+        maintCost,
+        downtimeHrs,
+        prodSaved,
+        potentialLoss,
+        netSavings,
+        actualComponent,
+        isCorrect
+      }
+    }));
+
+    setValidationStates(prev => ({ ...prev, [mid]: "confirmed" }));
+
+    setAiLearningLog(prev => [
+      {
+        timestamp: new Date().toISOString(),
+        type: "Technician Validation",
+        event: `${form.techName || 'Technician'} validated ${machineNamesMap[mid]}. AI was ${isCorrect ? 'Correct' : 'Incorrect'}.`,
+        status: isCorrect ? "success" : "optimized"
+      },
+      ...prev
+    ]);
+
+    setAiAccuracyStats(prev => {
+      const verified = prev.predictionsVerified + 1;
+      const correct = prev.correctPredictions + (isCorrect ? 1 : 0);
+      const incorrect = prev.incorrectPredictions + (isCorrect ? 0 : 1);
+      const newAcc = ((correct / verified) * 100).toFixed(1);
+      return {
+        ...prev,
+        predictionsVerified: verified,
+        correctPredictions: correct,
+        incorrectPredictions: incorrect,
+        currentAccuracy: parseFloat(newAcc),
+        lastValidation: isCorrect ? "Correct" : "Incorrect",
+        lastUpdated: "Just now"
+      };
+    });
+
+    // Simulate Toasts (could just be console logs or actual toast state if desired, but we can do it via chatHistory for now)
+    setChatHistory(prev => [
+      ...prev,
+      {
+        sender: "copilot",
+        text: `### 🔄 Decision Engine Re-executed\n\n**Business Impact Updated**\n**Learning Database Updated**\n\nTechnician validation complete for ${machineNamesMap[mid]}.`
+      }
+    ]);
   };
 
   // Send Copilot Query
@@ -1901,25 +2016,26 @@ export default function App() {
 
                         <div className="space-y-4">
                           {/* AI Predictions & Explainability Basis */}
-                          <div className="bg-slate-950/40 rounded-lg p-3 border border-white/5 space-y-2">
-                            <div className="flex justify-between items-center">
+                          <div className="bg-slate-950/40 rounded-lg p-3 border border-white/5 space-y-2.5">
+                            <div className="flex justify-between items-center pb-2 border-b border-white/5">
                               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Prediction Confidence</span>
                               <span className="font-mono text-emerald-400 font-bold text-sm">{MASTER_FINANCIAL_BASES[selectedMachine].confidence}%</span>
                             </div>
-                            <div className="space-y-1 text-xs">
+                            <div className="space-y-1.5 text-[11px]">
                               <div className="flex justify-between text-slate-300">
                                 <span>Likely Root Cause:</span>
                                 <span className="text-white font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].rootCause}</span>
                               </div>
-                              <div className="flex justify-between text-slate-300">
-                                <span>Evidence Used:</span>
-                                <span className="text-slate-400 text-right text-[10px] max-w-[70%]">
-                                  Temp {telemetry[selectedMachine].metrics.temperature}°C | Vib {telemetry[selectedMachine].metrics.vibration} mm/s
-                                </span>
-                              </div>
-                              <div className="flex justify-between text-slate-300">
-                                <span>Decision Basis:</span>
-                                <span className="text-slate-400 text-[10px]">Downtime cost &amp; load balance optimization</span>
+                              <div className="pt-1">
+                                <span className="text-[10px] text-slate-500 uppercase font-mono block mb-1">Evidence Used</span>
+                                <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-300 font-mono">
+                                  <div className="flex justify-between bg-slate-900/50 px-1.5 py-1 rounded border border-slate-800"><span>Temperature</span><span className="text-white">{telemetry[selectedMachine].metrics.temperature}°C</span></div>
+                                  <div className="flex justify-between bg-slate-900/50 px-1.5 py-1 rounded border border-slate-800"><span>Vibration</span><span className="text-white">{telemetry[selectedMachine].metrics.vibration} mm/s</span></div>
+                                  <div className="flex justify-between bg-slate-900/50 px-1.5 py-1 rounded border border-slate-800"><span>Load</span><span className="text-white">{(telemetry[selectedMachine].metrics.power / 10).toFixed(1)} kW</span></div>
+                                  <div className="flex justify-between bg-slate-900/50 px-1.5 py-1 rounded border border-slate-800"><span>Runtime</span><span className="text-white">8,402 hrs</span></div>
+                                  <div className="flex justify-between bg-slate-900/50 px-1.5 py-1 rounded border border-slate-800"><span>Historical Match</span><span className="text-white">94%</span></div>
+                                  <div className="flex justify-between bg-slate-900/50 px-1.5 py-1 rounded border border-slate-800"><span>Risk Score</span><span className={selStatus === 'healthy' ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>{selStatus === 'healthy' ? "Low (1.2)" : "High (8.7)"}</span></div>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1933,64 +2049,117 @@ export default function App() {
                                 
                                 {(() => {
                                   const valState = validationStates[selectedMachine] || "pending";
-                                  if (valState === "pending") {
+                                  const form = inspectionForms[selectedMachine] || { evidence: [], correct: 'yes', severity: 'Medium' };
+                                  if (valState === "pending" || valState === "verifying") {
                                     return (
                                       <div className="space-y-3">
                                         <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
                                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                                          <span>Inspection Status: Pending Physical Audit</span>
+                                          <span>Inspection Status: Pending Technician Validation</span>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 leading-relaxed">AI has flagged potential degradation. Physical validation is required to confirm subsystem components.</p>
-                                        <button
-                                          onClick={() => {
-                                            setValidationStates(prev => ({ ...prev, [selectedMachine]: "verifying" }));
-                                          }}
-                                          className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-1.5 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1"
-                                        >
-                                          <span>Dispatch Technician for Validation</span>
-                                        </button>
+                                        <p className="text-[10px] text-slate-400 leading-relaxed">AI has flagged potential degradation. Please perform physical inspection to validate.</p>
+                                        
+                                        <div className="space-y-2 text-xs">
+                                          <input type="text" placeholder="Technician Name" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.techName || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'techName', e.target.value)} />
+                                          <input type="text" placeholder="Employee ID" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.empId || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'empId', e.target.value)} />
+                                          
+                                          <div>
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Inspection Evidence</span>
+                                            <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-300">
+                                              {['Visual Inspection', 'Thermal Camera', 'Vibration Analyzer', 'Acoustic Analysis', 'Manual Testing', 'Other'].map(ev => (
+                                                <label key={ev} className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-300 transition">
+                                                  <input type="checkbox" checked={form.evidence?.includes(ev)} onChange={() => handleEvidenceToggle(selectedMachine, ev)} className="accent-emerald-500" />
+                                                  {ev}
+                                                </label>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          
+                                          <textarea placeholder="Evidence Summary (e.g., Excessive vibration observed...)" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-12 resize-none text-[10px]" value={form.summary || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'summary', e.target.value)} />
+                                          
+                                          <div className="pt-1">
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Was AI Prediction Correct?</span>
+                                            <div className="flex gap-4">
+                                              <label className="flex items-center gap-1 cursor-pointer">
+                                                <input type="radio" name="correct" checked={form.correct === 'yes'} onChange={() => handleInspectionChange(selectedMachine, 'correct', 'yes')} className="accent-emerald-500" />
+                                                <span className="text-white">Yes</span>
+                                              </label>
+                                              <label className="flex items-center gap-1 cursor-pointer">
+                                                <input type="radio" name="correct" checked={form.correct === 'no'} onChange={() => handleInspectionChange(selectedMachine, 'correct', 'no')} className="accent-rose-500" />
+                                                <span className="text-white">No</span>
+                                              </label>
+                                            </div>
+                                          </div>
+                                          
+                                          {form.correct === 'yes' ? (
+                                            <div className="flex flex-col gap-1 bg-slate-950/60 p-2.5 rounded-lg border border-emerald-900/40 text-[11px] leading-tight">
+                                              <span className="text-emerald-400 font-bold text-center">Confirmed: {MASTER_FINANCIAL_BASES[selectedMachine].component}</span>
+                                            </div>
+                                          ) : (
+                                            <div className="space-y-2 pt-1 border-t border-slate-800">
+                                              <span className="text-[10px] text-amber-400 uppercase tracking-wider block mb-1">Manual Override Required</span>
+                                              <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.actualSubsystem || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'actualSubsystem', e.target.value)}>
+                                                <option value="" disabled>Select Actual Subsystem</option>
+                                                <option value="Spindle Drive Assembly">Spindle Drive Assembly</option>
+                                                <option value="Joint 3 Gearbox Assembly">Joint 3 Gearbox Assembly</option>
+                                                <option value="Clamping Hydraulic Unit">Clamping Hydraulic Unit</option>
+                                                <option value="Rotary Screw Pneumatic Chamber">Rotary Screw Pneumatic Chamber</option>
+                                                <option value="Drive Roller Pulley Assembly">Drive Roller Pulley Assembly</option>
+                                                <option value="Hydraulic Pressure Valve Blocks">Hydraulic Pressure Valve Blocks</option>
+                                              </select>
+                                              <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.actualComponent || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'actualComponent', e.target.value)}>
+                                                <option value="" disabled>Select Actual Component</option>
+                                                {Object.keys(MAINTENANCE_KNOWLEDGE_BASE).filter(k => k !== "Default").map(comp => (
+                                                  <option key={comp} value={comp}>{comp}</option>
+                                                ))}
+                                              </select>
+                                              <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.severity || 'Medium'} onChange={(e) => handleInspectionChange(selectedMachine, 'severity', e.target.value)}>
+                                                <option value="Low">Severity: Low</option>
+                                                <option value="Medium">Severity: Medium</option>
+                                                <option value="High">Severity: High</option>
+                                              </select>
+                                            </div>
+                                          )}
+                                          
+                                          <button onClick={() => confirmInspection(selectedMachine)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1 mt-2">
+                                            Confirm Inspection
+                                          </button>
+                                        </div>
                                       </div>
                                     );
-                                  } else if (valState === "verifying") {
+                                  } else { // confirmed
+                                    const vf = validatedFinancials[selectedMachine] || {};
                                     return (
-                                      <div className="space-y-3">
-                                        <div className="flex items-center gap-2 text-xs text-indigo-400 font-medium">
-                                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                                          <span>Inspection Status: Physical Verification In Progress</span>
-                                        </div>
-                                        {/* Stepper hierarchy */}
-                                        <div className="flex flex-col gap-1 items-center bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 text-[11px] leading-tight">
-                                          <div className="flex justify-between w-full"><span className="text-slate-500">Machine:</span><span className="text-white font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].machine}</span></div>
-                                          <div className="text-slate-700">↓</div>
-                                          <div className="flex justify-between w-full"><span className="text-slate-500">Subsystem:</span><span className="text-white font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].subsystem}</span></div>
-                                          <div className="text-slate-700">↓</div>
-                                          <div className="flex justify-between w-full"><span className="text-slate-500">Component:</span><span className="text-amber-400 font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span></div>
-                                        </div>
-                                        <button
-                                          onClick={() => {
-                                            setValidationStates(prev => ({ ...prev, [selectedMachine]: "verified" }));
-                                          }}
-                                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1"
-                                        >
-                                          <span>Confirm Confirmed Component</span>
-                                        </button>
-                                      </div>
-                                    );
-                                  } else { // verified
-                                    return (
-                                      <div className="space-y-2 text-xs">
-                                        <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                                      <div className="space-y-3 text-xs">
+                                        <div className="flex items-center gap-2 text-emerald-400 font-semibold bg-emerald-950/20 px-2 py-1.5 rounded border border-emerald-900/30">
                                           <CheckCircle className="w-4 h-4 shrink-0" />
-                                          <span>Inspection Status: Completed</span>
+                                          <span>Inspection Status: Confirmed</span>
                                         </div>
-                                        <div className="flex flex-col gap-1 items-center bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 text-[11px] leading-tight">
-                                          <div className="flex justify-between w-full"><span className="text-slate-500">Machine:</span><span className="text-white font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].machine}</span></div>
-                                          <div className="text-slate-700">↓</div>
-                                          <div className="flex justify-between w-full"><span className="text-slate-500">Subsystem:</span><span className="text-white font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].subsystem}</span></div>
-                                          <div className="text-slate-700">↓</div>
-                                          <div className="flex justify-between w-full"><span className="text-slate-500">Component:</span><span className="text-emerald-400 font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span></div>
+                                        
+                                        <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-850 space-y-2">
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider font-mono border-b border-slate-800 pb-1 mb-2 flex justify-between">
+                                            <span>Before vs After Inspection</span>
+                                            <span className="text-emerald-400">Validated</span>
+                                          </div>
+                                          
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-slate-400">Predicted Component</span>
+                                            <span className="text-slate-300 font-mono text-[10px] text-right truncate w-32">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-slate-400">Actual Component</span>
+                                            <span className="text-emerald-400 font-bold font-mono text-[10px] text-right truncate w-32">{vf.actualComponent}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center pt-1 border-t border-slate-800/50">
+                                            <span className="text-slate-400">AI Accuracy Status</span>
+                                            <span className={`font-bold font-mono text-[10px] ${vf.isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                              {vf.isCorrect ? 'PREDICTION CORRECT' : 'PREDICTION INCORRECT'}
+                                            </span>
+                                          </div>
                                         </div>
-                                        <div className="text-[10px] text-slate-500 text-center font-mono">Verified by: Maintenance Team</div>
+                                        <div className="text-[10px] text-emerald-400 text-center font-mono animate-pulse mt-2 bg-emerald-950/20 py-1 rounded">
+                                          Business Impact & Learning Database Updated ✓
+                                        </div>
                                       </div>
                                     );
                                   }
@@ -2001,7 +2170,7 @@ export default function App() {
                               <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-2">
                                 <div className="flex justify-between items-center mb-1">
                                   <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Business Justification Ledger</span>
-                                  {validationStates[selectedMachine] === "verified" ? (
+                                  {validationStates[selectedMachine] === "confirmed" ? (
                                     <span className="bg-emerald-950/60 text-emerald-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-emerald-900/40">VALIDATED BUSINESS IMPACT</span>
                                   ) : (
                                     <span className="bg-amber-950/40 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-900/30">PRELIMINARY AI ESTIMATE</span>
@@ -2009,19 +2178,19 @@ export default function App() {
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Maintenance Cost:</span>
-                                  <span className="font-mono text-white">₹{selAdv.maintCost.toLocaleString()}</span>
+                                  <span className="font-mono text-white">₹{(validatedFinancials[selectedMachine]?.maintCost || selAdv.maintCost).toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Failure Cost if Ignored:</span>
-                                  <span className="font-mono text-white">₹{selAdv.potentialLoss.toLocaleString()}</span>
+                                  <span className="font-mono text-white">₹{(validatedFinancials[selectedMachine]?.potentialLoss || selAdv.potentialLoss).toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Estimated Production Loss:</span>
-                                  <span className="font-mono text-rose-400">₹{selAdv.prodSaved.toLocaleString()}</span>
+                                  <span className="font-mono text-rose-400">₹{(validatedFinancials[selectedMachine]?.prodSaved || selAdv.prodSaved).toLocaleString()}</span>
                                 </div>
                                 <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
                                   <span className="text-xs font-semibold text-emerald-300">Net Business Gain</span>
-                                  <span className="font-mono text-emerald-400 font-bold text-base">↑ ₹{selAdv.netSavings.toLocaleString()}</span>
+                                  <span className="font-mono text-emerald-400 font-bold text-base">↑ ₹{(validatedFinancials[selectedMachine]?.netSavings || selAdv.netSavings).toLocaleString()}</span>
                                 </div>
                               </div>
 
@@ -2029,15 +2198,15 @@ export default function App() {
                               <div className="bg-slate-950/30 rounded-xl p-3 border border-slate-800/60 grid grid-cols-3 gap-2 text-center">
                                 <div>
                                   <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Downtime Prevented</span>
-                                  <span className="text-xs font-bold text-white">{selAdv.downtimeHrs.toFixed(1)} hrs</span>
+                                  <span className="text-xs font-bold text-white">{(validatedFinancials[selectedMachine]?.downtimeHrs || selAdv.downtimeHrs).toFixed(1)} hrs</span>
                                 </div>
                                 <div>
                                   <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Production Saved</span>
-                                  <span className="text-xs font-bold text-emerald-400">₹{selAdv.prodSaved.toLocaleString()}</span>
+                                  <span className="text-xs font-bold text-emerald-400">₹{(validatedFinancials[selectedMachine]?.prodSaved || selAdv.prodSaved).toLocaleString()}</span>
                                 </div>
                                 <div>
                                   <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Estimated ROI</span>
-                                  <span className="text-xs font-bold text-white">{selROI}×</span>
+                                  <span className="text-xs font-bold text-white">{((validatedFinancials[selectedMachine]?.netSavings || selAdv.netSavings) / (validatedFinancials[selectedMachine]?.maintCost || selAdv.maintCost)).toFixed(1)}×</span>
                                 </div>
                               </div>
 
@@ -2049,14 +2218,14 @@ export default function App() {
                                 ) : (
                                   <button
                                     onClick={() => approveRecommendation(selectedMachine)}
-                                    disabled={validationStates[selectedMachine] !== "verified"}
-                                    className={`flex-1 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "verified" ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer glow-emerald active:scale-95" : "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"}`}
+                                    disabled={validationStates[selectedMachine] !== "confirmed"}
+                                    className={`flex-1 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "confirmed" ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer glow-emerald active:scale-95" : "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"}`}
                                   >
                                     <CheckCircle className="w-3.5 h-3.5" /> Approve Executive Recommendation
                                   </button>
                                 )}
                                 
-                                {validationStates[selectedMachine] !== "verified" && (
+                                {validationStates[selectedMachine] !== "confirmed" && (
                                   <p className="text-[9px] text-amber-500 text-center italic mt-0.5 leading-normal">
                                     *Complete Maintenance Validation to approve recommended action.
                                   </p>
@@ -3045,24 +3214,34 @@ export default function App() {
 
                   {/* Decision Intelligence Algorithm PPT Card */}
                   <div className="glass-panel border border-slate-800 rounded-2xl p-5">
-                    <h3 className="font-bold text-md font-display text-white mb-2 pb-2 border-b border-slate-850">Decision Intelligence Algorithm</h3>
-                    <div className="space-y-3.5 text-xs font-sans">
-                      {[
-                        { step: "1. Data Acquisition", desc: "Machine telemetry collected from industrial sensors." },
-                        { step: "2. Feature Engineering", desc: "Temperature, vibration, pressure, load and energy features extracted." },
-                        { step: "3. Edge AI Prediction", desc: "Local AI estimates failure probability." },
-                        { step: "4. Root Cause Ranking", desc: "Most likely subsystem/component identified." },
-                        { step: "5. Maintenance Verification", desc: "Engineer validates the suspected component." },
-                        { step: "6. Financial Impact Analysis", desc: "Maintenance cost, downtime cost and production loss calculated." },
-                        { step: "7. Decision Comparison", desc: "Multiple maintenance strategies evaluated." },
-                        { step: "8. Optimization", desc: "Best operational strategy selected." },
-                        { step: "9. Continuous Learning", desc: "Historical outcomes improve future recommendations." }
-                      ].map((alg) => (
-                        <div key={alg.step} className="border-b border-slate-850/60 pb-2 last:border-0 last:pb-0">
-                          <div className="font-bold text-emerald-400 font-mono text-[11px] mb-0.5">{alg.step}</div>
-                          <p className="text-slate-400 leading-relaxed text-[11px]">{alg.desc}</p>
+                    <h3 className="font-bold text-md font-display text-white mb-3 pb-2 border-b border-slate-850">How EdgeTwin AI Makes Decisions</h3>
+                    <div className="space-y-4 text-xs font-sans">
+                      
+                      <div className="space-y-2 text-[11px] font-mono">
+                        <div className="flex flex-col bg-slate-950/40 p-2.5 rounded-lg border border-slate-850">
+                          <span className="text-emerald-400 font-bold mb-1">Pipeline A: Signal Processing (Edge)</span>
+                          <span className="text-slate-400 leading-relaxed">High-frequency acoustic and vibration telemetry is filtered locally using Fast Fourier Transform (FFT) algorithms to extract bearing fault frequencies without cloud latency.</span>
                         </div>
-                      ))}
+                        <div className="flex flex-col bg-slate-950/40 p-2.5 rounded-lg border border-slate-850">
+                          <span className="text-amber-400 font-bold mb-1">Pipeline B: ML Anomaly Detection</span>
+                          <span className="text-slate-400 leading-relaxed">Random Forest and Gradient Boosting ensembles score current telemetry against historical failure profiles. Generates probabilistic subsystem failure indices.</span>
+                        </div>
+                        <div className="flex flex-col bg-slate-950/40 p-2.5 rounded-lg border border-slate-850">
+                          <span className="text-indigo-400 font-bold mb-1">Pipeline C: Financial Digital Twin</span>
+                          <span className="text-slate-400 leading-relaxed">Queries the Maintenance Knowledge Base to fetch labor rates, MTTR, and component costs. Simulates downstream production loss based on real-time line capacity.</span>
+                        </div>
+                        <div className="flex flex-col bg-slate-950/40 p-2.5 rounded-lg border border-slate-850">
+                          <span className="text-rose-400 font-bold mb-1">Pipeline D: Prescriptive Decision Engine</span>
+                          <span className="text-slate-400 leading-relaxed">Calculates multiple maintenance scenarios. Ranks operational strategies by highest Return on Maintenance (ROM) and lowest production disruption.</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-slate-850">
+                        <span className="text-slate-300 font-bold font-display mb-2 block">Decision Confidence Score Formula</span>
+                        <div className="bg-slate-900/60 p-3 rounded-lg font-mono text-[10px] text-center border border-slate-800 text-slate-400">
+                          <span className="text-emerald-300">Confidence</span> = ( W₁ × PatternMatchScore ) + ( W₂ × LifeRemaining ) - ( Penalty × SensorNoise )
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -3071,6 +3250,53 @@ export default function App() {
                 {/* Right Column: TRL + Competitive Advantage + Risk Mitigation */}
                 <div className="col-span-1 space-y-5 flex flex-col">
                   
+                  {/* AI Prediction Accuracy Widget */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-sm font-display text-white">AI Prediction Accuracy</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-[10px] text-emerald-400 font-mono">Live Feed</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex flex-col justify-center items-center">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider mb-1">Current Accuracy</span>
+                        <span className="text-3xl font-bold font-display text-white">{aiAccuracyStats.currentAccuracy}%</span>
+                        <span className="text-[10px] text-emerald-400 font-mono mt-1">↑ {aiAccuracyStats.learningTrend} YoY</span>
+                      </div>
+                      
+                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex flex-col justify-center gap-2 text-[11px] font-mono">
+                        <div className="flex justify-between w-full border-b border-slate-800/50 pb-1.5">
+                          <span className="text-slate-400">Total Validations</span>
+                          <span className="text-white font-bold">{aiAccuracyStats.predictionsVerified}</span>
+                        </div>
+                        <div className="flex justify-between w-full border-b border-slate-800/50 pb-1.5">
+                          <span className="text-slate-400">Confirmed Correct</span>
+                          <span className="text-emerald-400 font-bold">{aiAccuracyStats.correctPredictions}</span>
+                        </div>
+                        <div className="flex justify-between w-full">
+                          <span className="text-slate-400">Manual Overrides</span>
+                          <span className="text-amber-400 font-bold">{aiAccuracyStats.incorrectPredictions}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-emerald-950/20 border border-emerald-900/30 p-3 rounded-lg">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[9px] text-slate-500 uppercase tracking-wider font-mono">Last Validation Status</span>
+                        <span className={`text-[10px] font-bold font-mono ${aiAccuracyStats.lastValidation === 'Correct' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {aiAccuracyStats.lastValidation === 'Correct' ? 'PREDICTION CORRECT' : 'PREDICTION OVERRIDDEN'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1 text-right">
+                        <span className="text-[9px] text-slate-500 uppercase tracking-wider font-mono">Last Updated</span>
+                        <span className="text-[10px] text-slate-300 font-mono">{aiAccuracyStats.lastUpdated}</span>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Technology Readiness Level */}
                   <div className="glass-panel border border-slate-800 rounded-2xl p-5">
                     <h4 className="font-bold text-sm font-display text-white mb-3">Technology Readiness Level (TRL)</h4>
