@@ -97,6 +97,18 @@ export default function App() {
     lastUpdated: "2 mins ago"
   });
   const [validatedFinancials, setValidatedFinancials] = useState({});
+  const [recommendationForms, setRecommendationForms] = useState({});
+  const [adoptionAnalytics, setAdoptionAnalytics] = useState({
+    totalGenerated: 42,
+    accepted: 34,
+    modified: 5,
+    rejected: 3,
+    avgResponseTime: "14m"
+  });
+  const [decisionHistory, setDecisionHistory] = useState([
+    { timestamp: new Date(Date.now() - 86400000).toISOString(), machine: "CNC Mill", recommendation: "Replace Coolant Filter", decision: "Accepted", reason: "Standard procedure", impact: "High", financialOutcome: "+₹14,500", engineer: "S. Rao", isCorrect: true, outcome: "Downtime Prevented" }
+  ]);
+  const [aiAdoptionTrustScore, setAiAdoptionTrustScore] = useState(94.2);
   const [isOptimizingPlan, setIsOptimizingPlan] = useState(false);
   const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [failuresPrevented, setFailuresPrevented] = useState(4);
@@ -1033,6 +1045,118 @@ export default function App() {
       {
         sender: "copilot",
         text: `### 🔄 Decision Engine Re-executed\n\n**Business Impact Updated**\n**Learning Database Updated**\n\nTechnician validation complete for ${machineNamesMap[mid]}.`
+      }
+    ]);
+  };
+
+  const handleRecommendationChange = (mid, field, value) => {
+    setRecommendationForms(prev => ({
+      ...prev,
+      [mid]: {
+        ...(prev[mid] || { decision: 'accept', priority: 'High', scheduledTime: 'Next Shift', strategy: 'Component Replacement', notes: '', rejectReason: '', rejectRemarks: '' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const submitRecommendationDecision = (mid) => {
+    const form = recommendationForms[mid] || { decision: 'accept', priority: 'High', scheduledTime: 'Next Shift', strategy: 'Component Replacement' };
+    const vf = validatedFinancials[mid] || MASTER_FINANCIAL_BASES[mid];
+    const decision = form.decision;
+
+    let trustScoreDelta = 0;
+    let impactStr = "";
+    let financialOutcome = "";
+
+    if (decision === 'accept') {
+      trustScoreDelta = 1.2;
+      impactStr = "High";
+      financialOutcome = `+₹${vf.netSavings.toLocaleString()}`;
+      setApprovedMachines(prev => new Set(prev).add(mid));
+      
+      // Add to schedule if not present
+      if (!schedule.some(s => s.machine === machineNamesMap[mid])) {
+        setSchedule(prev => [...prev, {
+          id: `WO-${Math.floor(Math.random() * 10000)}`,
+          machine: machineNamesMap[mid],
+          task: form.strategy,
+          priority: form.priority,
+          time: form.scheduledTime,
+          team: form.priority === "Urgent" ? "Emergency Team" : "Mechanical",
+          status: "scheduled"
+        }]);
+      }
+    } else if (decision === 'modify') {
+      trustScoreDelta = 0.5;
+      impactStr = "Medium";
+      financialOutcome = `+₹${(vf.netSavings * 0.9).toLocaleString()}`; // Slightly adjusted savings
+      setApprovedMachines(prev => new Set(prev).add(mid)); // Modified is still approved for maintenance
+      
+      if (!schedule.some(s => s.machine === machineNamesMap[mid])) {
+        setSchedule(prev => [...prev, {
+          id: `WO-${Math.floor(Math.random() * 10000)}`,
+          machine: machineNamesMap[mid],
+          task: form.strategy,
+          priority: form.priority,
+          time: form.scheduledTime,
+          team: "Mechanical",
+          status: "scheduled"
+        }]);
+      }
+    } else if (decision === 'reject') {
+      trustScoreDelta = -1.5;
+      impactStr = "Negative";
+      financialOutcome = `-₹${vf.potentialLoss.toLocaleString()}`;
+      // Do not add to schedule, leaves it pending or resets
+      setValidationStates(prev => ({ ...prev, [mid]: "rejected" }));
+    }
+
+    // Update Analytics
+    setAdoptionAnalytics(prev => ({
+      ...prev,
+      totalGenerated: prev.totalGenerated + 1,
+      accepted: prev.accepted + (decision === 'accept' ? 1 : 0),
+      modified: prev.modified + (decision === 'modify' ? 1 : 0),
+      rejected: prev.rejected + (decision === 'reject' ? 1 : 0),
+    }));
+
+    setAiAdoptionTrustScore(prev => Math.min(100, Math.max(0, prev + trustScoreDelta)));
+
+    // Update Decision History
+    const engName = inspectionForms[mid]?.techName || "Engineer";
+    setDecisionHistory(prev => [
+      {
+        timestamp: new Date().toISOString(),
+        machine: machineNamesMap[mid],
+        recommendation: MASTER_FINANCIAL_BASES[mid].rootCause,
+        decision: decision.charAt(0).toUpperCase() + decision.slice(1),
+        reason: decision === 'reject' ? form.rejectReason : form.strategy,
+        impact: impactStr,
+        financialOutcome: financialOutcome,
+        engineer: engName,
+        isCorrect: vf.isCorrect,
+        outcome: decision === 'reject' ? "Deferred" : "Scheduled"
+      },
+      ...prev
+    ]);
+
+    // Update Learning Log
+    setAiLearningLog(prev => [
+      {
+        timestamp: new Date().toISOString(),
+        type: "Recommendation Adoption",
+        event: `Model updated based on ${decision} decision by ${engName} for ${machineNamesMap[mid]}.`,
+        status: decision === 'reject' ? "optimized" : "success"
+      },
+      ...prev
+    ]);
+
+    // Toast
+    setChatHistory(prev => [
+      ...prev,
+      {
+        sender: "copilot",
+        text: `### 📊 AI Recommendation Model Updated\n\n**Decision Recorded:** ${decision.toUpperCase()}\n**Business Outcome:** ${decision === 'reject' ? 'Maintenance Deferred' : 'Maintenance Scheduled'}`
       }
     ]);
   };
@@ -2211,24 +2335,82 @@ export default function App() {
                               </div>
 
                               <div className="flex flex-col gap-2">
-                                {approvedMachines.has(selectedMachine) ? (
-                                  <div className="flex-1 bg-emerald-950/60 border border-emerald-700/50 text-emerald-400 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5">
-                                    <CheckCircle className="w-3.5 h-3.5" /> Dispatched ✓
+                                {validationStates[selectedMachine] !== "confirmed" && validationStates[selectedMachine] !== "rejected" ? (
+                                  <>
+                                    <button
+                                      disabled
+                                      className="flex-1 py-2 rounded-lg font-bold text-xs bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed flex items-center justify-center gap-1.5"
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" /> Approve Executive Recommendation
+                                    </button>
+                                    <p className="text-[9px] text-amber-500 text-center italic mt-0.5 leading-normal">
+                                      *Complete Maintenance Validation to approve recommended action.
+                                    </p>
+                                  </>
+                                ) : approvedMachines.has(selectedMachine) || validationStates[selectedMachine] === "rejected" ? (
+                                  <div className={`flex-1 border py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "rejected" ? "bg-rose-950/60 border-rose-700/50 text-rose-400" : "bg-emerald-950/60 border-emerald-700/50 text-emerald-400"}`}>
+                                    {validationStates[selectedMachine] === "rejected" ? "Maintenance Deferred ❌" : "Dispatched ✓"}
                                   </div>
                                 ) : (
-                                  <button
-                                    onClick={() => approveRecommendation(selectedMachine)}
-                                    disabled={validationStates[selectedMachine] !== "confirmed"}
-                                    className={`flex-1 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "confirmed" ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer glow-emerald active:scale-95" : "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"}`}
-                                  >
-                                    <CheckCircle className="w-3.5 h-3.5" /> Approve Executive Recommendation
-                                  </button>
-                                )}
-                                
-                                {validationStates[selectedMachine] !== "confirmed" && (
-                                  <p className="text-[9px] text-amber-500 text-center italic mt-0.5 leading-normal">
-                                    *Complete Maintenance Validation to approve recommended action.
-                                  </p>
+                                  <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3 mt-1">
+                                    <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Recommendation Review</span>
+                                    {(() => {
+                                      const recForm = recommendationForms[selectedMachine] || { decision: 'accept', priority: 'High', scheduledTime: 'Next Shift', strategy: 'Component Replacement' };
+                                      return (
+                                        <div className="space-y-3 text-[11px]">
+                                          <div className="grid grid-cols-3 gap-2">
+                                            <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'accept')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'accept' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Accept</button>
+                                            <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'modify')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'modify' ? 'bg-amber-600/20 border-amber-500 text-amber-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Modify</button>
+                                            <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'reject')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'reject' ? 'bg-rose-600/20 border-rose-500 text-rose-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Reject</button>
+                                          </div>
+                                          
+                                          {recForm.decision === 'modify' && (
+                                            <div className="space-y-2 pt-2 border-t border-slate-800/50">
+                                              <select value={recForm.priority} onChange={(e) => handleRecommendationChange(selectedMachine, 'priority', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none">
+                                                <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+                                              </select>
+                                              <input type="text" placeholder="Scheduled Time" value={recForm.scheduledTime} onChange={(e) => handleRecommendationChange(selectedMachine, 'scheduledTime', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" />
+                                              <input type="text" placeholder="Repair Strategy" value={recForm.strategy} onChange={(e) => handleRecommendationChange(selectedMachine, 'strategy', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" />
+                                              <textarea placeholder="Maintenance Notes" value={recForm.notes} onChange={(e) => handleRecommendationChange(selectedMachine, 'notes', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-10 resize-none"></textarea>
+                                            </div>
+                                          )}
+                                          
+                                          {recForm.decision === 'reject' && (
+                                            <div className="space-y-2 pt-2 border-t border-slate-800/50">
+                                              <select value={recForm.rejectReason} onChange={(e) => handleRecommendationChange(selectedMachine, 'rejectReason', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none">
+                                                <option value="">Select Reason for Rejection</option>
+                                                <option>False Positive</option>
+                                                <option>Production Constraints</option>
+                                                <option>Machine Operating Normally</option>
+                                                <option>Spare Parts Unavailable</option>
+                                                <option>Safety Concern</option>
+                                                <option>Engineer Override</option>
+                                                <option>Business Priority Changed</option>
+                                                <option>Other</option>
+                                              </select>
+                                              <textarea placeholder="Remarks" value={recForm.rejectRemarks} onChange={(e) => handleRecommendationChange(selectedMachine, 'rejectRemarks', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-10 resize-none"></textarea>
+                                            </div>
+                                          )}
+                                          
+                                          <div className="pt-2">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <span className="text-[9px] text-slate-500 uppercase font-mono">Expected Outcome:</span>
+                                              <span className={`text-[10px] font-bold ${recForm.decision === 'accept' ? 'text-emerald-400' : recForm.decision === 'modify' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                {recForm.decision === 'accept' ? 'Savings Increase, Risk Reduced' : recForm.decision === 'modify' ? 'Business Impact Recalculated' : 'Maintenance Deferred, Financial Exposure Increased'}
+                                              </span>
+                                            </div>
+                                            <button
+                                              onClick={() => submitRecommendationDecision(selectedMachine)}
+                                              disabled={recForm.decision === 'reject' && !recForm.rejectReason}
+                                              className="w-full py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                              Confirm Decision
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 )}
                                 
                                 <button
@@ -2399,6 +2581,44 @@ export default function App() {
                 <p className="text-slate-400 text-sm">Executive-level financial KPIs quantifying the business value generated by AI-assisted maintenance.</p>
               </div>
 
+              {/* Adoption KPIs */}
+              <div className="grid grid-cols-3 gap-6 mb-6">
+                <div className="glass-panel border border-slate-800 rounded-2xl p-4">
+                  <span className="text-[10px] text-slate-400 font-mono block mb-1 uppercase tracking-wider">AI Trust Score</span>
+                  <div className="flex items-end gap-2">
+                    <span className="text-2xl font-bold text-white font-display">{aiAdoptionTrustScore.toFixed(1)}%</span>
+                    <span className="text-[10px] text-emerald-400 mb-1">↑ High Confidence</span>
+                  </div>
+                </div>
+                <div className="glass-panel border border-slate-800 rounded-2xl p-4">
+                  <span className="text-[10px] text-slate-400 font-mono block mb-1 uppercase tracking-wider">Recommendation Acceptance Rate</span>
+                  <div className="flex items-end gap-2">
+                    <span className="text-2xl font-bold text-white font-display">{((adoptionAnalytics.accepted / adoptionAnalytics.totalGenerated) * 100).toFixed(1)}%</span>
+                    <span className="text-[10px] text-emerald-400 mb-1">Target: &gt; 80%</span>
+                  </div>
+                </div>
+                <div className="glass-panel border border-slate-800 rounded-2xl p-4">
+                  <span className="text-[10px] text-slate-400 font-mono block mb-1 uppercase tracking-wider">Engineer Adoption Rate</span>
+                  <div className="flex items-end gap-2">
+                    <span className="text-2xl font-bold text-white font-display">{(((adoptionAnalytics.accepted + adoptionAnalytics.modified) / adoptionAnalytics.totalGenerated) * 100).toFixed(1)}%</span>
+                    <span className="text-[10px] text-slate-500 mb-1">Total Interaction</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Executive Insight Card */}
+              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 flex items-start gap-3">
+                <div className="shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wide font-mono mb-1">Executive Insight</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Recommendation Adoption has increased from 78% to {(((adoptionAnalytics.accepted + adoptionAnalytics.modified) / adoptionAnalytics.totalGenerated) * 100).toFixed(1)}% over the last 30 maintenance events, improving AI Trust Score and reducing unnecessary maintenance costs.
+                  </p>
+                </div>
+              </div>
+
               {/* Financial KPI Grid */}
               <div className="grid grid-cols-4 gap-6">
                 <div className="glass-panel border border-slate-800 rounded-2xl p-5 flex items-center gap-4 relative overflow-hidden">
@@ -2566,6 +2786,47 @@ export default function App() {
                 <div className="mt-5 p-3 bg-slate-900/40 rounded-xl border border-slate-850 text-[11px] text-slate-300 font-mono flex items-start gap-2">
                   <span className="text-emerald-400 shrink-0">✓</span>
                   <span>All projections are calculated using EdgeTwin AI's actual observed <strong className="text-white">₹4,17,000 per-decision avoided loss</strong> (as demonstrated live in this session).</span>
+                </div>
+              </div>
+              
+              {/* Decision History Table */}
+              <div className="glass-panel border border-slate-800 rounded-2xl p-6 overflow-hidden">
+                <h3 className="font-bold text-md font-display text-white mb-4">Decision History</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase tracking-wider">
+                        <th className="pb-3 pr-4">Timestamp</th>
+                        <th className="pb-3 pr-4">Machine</th>
+                        <th className="pb-3 pr-4">AI Recommendation</th>
+                        <th className="pb-3 pr-4">Engineer Decision</th>
+                        <th className="pb-3 pr-4">Reason</th>
+                        <th className="pb-3 pr-4">Engineer Name</th>
+                        <th className="pb-3 pr-4">Prediction Correct</th>
+                        <th className="pb-3 pr-4">Outcome</th>
+                        <th className="pb-3 text-right">Business Value Generated</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {decisionHistory.map((log, i) => (
+                        <tr key={i} className="text-slate-300">
+                          <td className="py-3 pr-4 font-mono text-[10px] text-slate-500">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                          <td className="py-3 pr-4 font-semibold">{log.machine}</td>
+                          <td className="py-3 pr-4 text-slate-400">{log.recommendation}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`px-2 py-1 rounded text-[10px] font-bold ${log.decision === 'Accepted' ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900' : log.decision === 'Modified' ? 'bg-amber-950/50 text-amber-400 border border-amber-900' : 'bg-rose-950/50 text-rose-400 border border-rose-900'}`}>
+                              {log.decision}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-[10px] text-slate-400">{log.reason}</td>
+                          <td className="py-3 pr-4 font-mono text-[10px]">{log.engineer}</td>
+                          <td className="py-3 pr-4 text-[10px] font-mono">{log.isCorrect ? <span className="text-emerald-400">Yes</span> : <span className="text-rose-400">No</span>}</td>
+                          <td className="py-3 pr-4 text-[10px]">{log.outcome}</td>
+                          <td className="py-3 text-right font-mono font-bold text-white">{log.financialOutcome}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -3245,6 +3506,35 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* AI Governance & Recommendation Adoption */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-5">
+                    <h3 className="font-bold text-md font-display text-white mb-3">AI Governance &amp; Recommendation Adoption</h3>
+                    <p className="text-[11px] text-slate-400 mb-4 leading-relaxed">
+                      Recommendation Adoption is a key enterprise AI KPI because it measures operational trust in AI-generated recommendations. Higher adoption rates indicate greater confidence in the Decision Intelligence Engine, leading to faster maintenance decisions, reduced downtime, improved operational efficiency, and stronger business outcomes. Tracking acceptance, modification, and rejection patterns also enables continuous improvement of the AI recommendation model through real-world engineer feedback.
+                    </p>
+                    
+                    <div className="bg-slate-950/40 rounded-lg p-4 border border-slate-850">
+                      <h4 className="text-[10px] font-bold font-mono text-slate-300 uppercase tracking-widest mb-4 text-center">Human-In-The-Loop AI Governance Workflow</h4>
+                      <div className="flex flex-col items-center gap-2 text-[10px] font-mono">
+                        <div className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">AI Recommendation</div>
+                        <div className="text-slate-600">↓</div>
+                        <div className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">Engineer Review</div>
+                        <div className="text-slate-600">↓</div>
+                        <div className="flex gap-3">
+                          <div className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">Accept</div>
+                          <div className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400">Modify</div>
+                          <div className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400">Reject</div>
+                        </div>
+                        <div className="text-slate-600">↓</div>
+                        <div className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">Business Outcome</div>
+                        <div className="text-slate-600">↓</div>
+                        <div className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">AI Learning Database Updated</div>
+                        <div className="text-slate-600">↓</div>
+                        <div className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-center">Higher Trust Score &amp; Better Future Recommendations</div>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
 
                 {/* Right Column: TRL + Competitive Advantage + Risk Mitigation */}
@@ -3293,6 +3583,50 @@ export default function App() {
                       <div className="flex flex-col gap-1 text-right">
                         <span className="text-[9px] text-slate-500 uppercase tracking-wider font-mono">Last Updated</span>
                         <span className="text-[10px] text-slate-300 font-mono">{aiAccuracyStats.lastUpdated}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Recommendation Adoption Analytics */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold text-sm font-display text-white">AI Recommendation Adoption Analytics</h4>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex flex-col justify-center gap-2 text-[11px] font-mono">
+                        <div className="flex justify-between w-full border-b border-slate-800/50 pb-1.5">
+                          <span className="text-slate-400">Total Generated</span>
+                          <span className="text-white font-bold">{adoptionAnalytics.totalGenerated}</span>
+                        </div>
+                        <div className="flex justify-between w-full border-b border-slate-800/50 pb-1.5">
+                          <span className="text-slate-400">Accepted</span>
+                          <span className="text-emerald-400 font-bold">{adoptionAnalytics.accepted}</span>
+                        </div>
+                        <div className="flex justify-between w-full border-b border-slate-800/50 pb-1.5">
+                          <span className="text-slate-400">Modified</span>
+                          <span className="text-amber-400 font-bold">{adoptionAnalytics.modified}</span>
+                        </div>
+                        <div className="flex justify-between w-full">
+                          <span className="text-slate-400">Rejected</span>
+                          <span className="text-rose-400 font-bold">{adoptionAnalytics.rejected}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex flex-col justify-center items-center">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider mb-1">Acceptance Rate</span>
+                        <span className="text-3xl font-bold font-display text-white">{((adoptionAnalytics.accepted / adoptionAnalytics.totalGenerated) * 100).toFixed(1)}%</span>
+                        <span className="text-[10px] text-slate-400 font-mono mt-1">Avg Response: {adoptionAnalytics.avgResponseTime}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1.5 bg-slate-950/40 border border-slate-800 p-3 rounded-lg text-[10px] font-mono text-slate-400">
+                      <span className="text-slate-300 font-bold uppercase tracking-wider mb-0.5">AI Trust Score Formula</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-emerald-400">Trust</span> = ( W₁ × Accuracy ) + ( W₂ × AcceptanceRate ) 
+                      </div>
+                      <div className="flex items-center gap-1 pl-10">
+                        + ( W₃ × Outcomes ) - ( Penalty × Rejections )
                       </div>
                     </div>
                   </div>
