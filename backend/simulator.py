@@ -131,7 +131,7 @@ def update_simulation_tick():
                     incident_type=anom_desc,
                     severity=mdata["status"],
                     metrics=curr_metrics,
-                    action_taken="AI Recommendation: Replace faulty component immediately."
+                    action_taken="Edge AI Recommendation: Physical validation required for suspected wear."
                 )
 
 def trigger_anomaly(machine_id, anomaly_type):

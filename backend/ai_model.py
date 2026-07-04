@@ -138,11 +138,11 @@ def predict_machine_health(machine_id, metrics, runtime_hours):
     
     if prob > 0.7:
         main_driver = max(importances, key=importances.get)
-        explanation = f"Critical risk detected. The primary driver is abnormally high {main_driver} (contributing {importances[main_driver]}% of failure score)."
+        explanation = f"Potential critical wear risk detected. The primary driver is abnormally high {main_driver} (contributing {importances[main_driver]}% of failure score). Maintenance validation recommended."
     elif prob > 0.3:
-        explanation = "Warning threshold exceeded. Slight mechanical wear and thermal buildup detected under load."
+        explanation = "Warning threshold exceeded. Possible mechanical wear and thermal buildup detected under load. Inspection recommended."
     else:
-        explanation = "Machine is operating within normal technical parameters. Nominal heat dissipation and vibration levels."
+        explanation = "Machine is operating within nominal technical parameters. Standard heat dissipation and vibration levels."
         
     return {
         "failure_probability": round(prob * 100, 1),

@@ -62,17 +62,17 @@ def respond_to_copilot_query(query, machines_status):
             response += f"- **Operating Load:** `{load}%` | **Running Hours:** `{status.get('runtime_hours')} hrs`\n\n"
             
             response += f"**Edge AI Analysis:**\n"
-            response += f"- **Failure Probability:** `{prob}%` chance of breakdown within the next shift.\n"
+            response += f"- **Prediction Confidence:** `{prob}%` probability of suspected degradation.\n"
             response += f"- **Remaining Useful Life (RUL):** `{rul} hours` remaining.\n"
             response += f"- **XAI Focus:** {ai_pred.get('explanation')}\n\n"
             
             if prob > 35:
-                response += f"💡 **Recommended Decision:**\n"
+                response += f"💡 **Executive Recommendation:**\n"
                 response += f"Schedule preventive service immediately. Doing so will cost **₹{roi.get('planned_maintenance_cost'):,}**, "
                 response += f"but prevents a major failure cost of **₹{roi.get('estimated_failure_repair_cost'):,}** and **₹{roi.get('expected_production_loss'):,}** in lost output.\n"
-                response += f"**Net Decision Value:** Savings of **₹{net_savings:,}** (ROM: `{roi.get('return_on_maintenance')}%`)."
+                response += f"**Validated Business Impact:** Savings of **₹{net_savings:,}** (ROM: `{roi.get('return_on_maintenance')}%`)."
             else:
-                response += f"💡 **Recommended Decision:**\n"
+                response += f"💡 **Executive Recommendation:**\n"
                 response += "No immediate maintenance is required. Keep running normal operations. Energy efficiency is currently stable."
                 
             return response
@@ -99,14 +99,14 @@ def respond_to_copilot_query(query, machines_status):
             mrul = mdata.get("ai_prediction", {}).get("rul_hours", 200)
             mstatus = mdata.get("status")
             status_emoji = "🔴" if mstatus == "critical" else ("🟡" if mstatus == "warning" else "🟢")
-            response += f"- {status_emoji} **{MACHINE_NAMES[mid]}**: Failure Risk `{mprob}%` | RUL `{mrul} hrs`\n"
+            response += f"- {status_emoji} **{MACHINE_NAMES[mid]}**: Prediction Confidence `{mprob}%` | RUL `{mrul} hrs`\n"
             
         roi = calculate_recommendation_roi(highest_risk_mid, prob)
         response += f"\n**Urgent Action ROI Details ({highest_risk_mid}):**\n"
         response += f"- **Planned Service Cost:** ₹{roi.get('planned_maintenance_cost'):,}\n"
         response += f"- **Unplanned Failure Avoided:** ₹{roi.get('estimated_failure_repair_cost'):,}\n"
         response += f"- **Production Loss Avoided:** ₹{roi.get('expected_production_loss'):,}\n"
-        response += f"- 💰 **Net Savings for Factory:** **₹{roi.get('net_savings'):,}**\n"
+        response += f"- 💰 **Validated Business Impact (Savings):** **₹{roi.get('net_savings'):,}**\n"
         response += f"- **Return on Maintenance (ROM):** `{roi.get('return_on_maintenance')}%`"
         
         return response

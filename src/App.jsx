@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { 
   Activity, ShieldAlert, Cpu, TrendingUp, Calendar, AlertCircle, 
-  Send, Layers, BarChart2, DollarSign, Clock, Zap, Download, 
+  Send, Layers, BarChart2, Wallet, Clock, Zap, Download, 
   CheckCircle, Play, Sparkles, RefreshCw, ChevronRight, HelpCircle, Volume2
 } from "lucide-react";
 import { 
@@ -47,6 +47,16 @@ export default function App() {
   // Tab control
   const [activeTab, setActiveTab] = useState("dashboard");
   
+  // Single Source of Truth for Enterprise Financials & Hierarchy
+  const MASTER_FINANCIAL_BASES = {
+    M1: { name: "CNC Mill (M1)", plannedCost: 15000, failureRepairCost: 180000, prodLossRate: 60000, downtimeHrs: 5.0, potentialLoss: 480000, netSavings: 465000, rom: 3100, powerKw: 15.0, machine: "CNC Mill", subsystem: "Spindle Drive Assembly", component: "Main Spindle Bearings", rootCause: "Spindle bearing wear", confidence: 88 },
+    M2: { name: "Injection Molder (M2)", plannedCost: 25000, failureRepairCost: 240000, prodLossRate: 80000, downtimeHrs: 6.0, potentialLoss: 720000, netSavings: 695000, rom: 2780, powerKw: 25.0, machine: "Injection Molder", subsystem: "Clamping Hydraulic Unit", component: "Cylinder Piston Seals", rootCause: "Piston seal leak", confidence: 90 },
+    M3: { name: "6-Axis Robot (M3)", plannedCost: 18000, failureRepairCost: 210000, prodLossRate: 80000, downtimeHrs: 6.0, potentialLoss: 690000, netSavings: 672000, rom: 3733, powerKw: 8.0, machine: "6-Axis Robot Arm", subsystem: "Joint 3 Gearbox Assembly", component: "Harmonic Drive Bearing", rootCause: "Bearing degradation", confidence: 92 },
+    M4: { name: "Air Compressor (M4)", plannedCost: 10000, failureRepairCost: 110000, prodLossRate: 40000, downtimeHrs: 4.0, potentialLoss: 270000, netSavings: 260000, rom: 2600, powerKw: 30.0, machine: "Air Compressor", subsystem: "Rotary Screw Pneumatic Chamber", component: "Discharge Valve Gasket", rootCause: "Discharge valve leakage", confidence: 85 },
+    M5: { name: "Conveyor Belt (M5)", plannedCost: 8000, failureRepairCost: 90000, prodLossRate: 50000, downtimeHrs: 3.0, potentialLoss: 240000, netSavings: 232000, rom: 2900, powerKw: 5.0, machine: "Smart Conveyor", subsystem: "Drive Roller Pulley Assembly", component: "Tensioner Belt", rootCause: "Belt tension wear", confidence: 87 },
+    M6: { name: "Hydraulic Press (M6)", plannedCost: 20000, failureRepairCost: 220000, prodLossRate: 90000, downtimeHrs: 5.0, potentialLoss: 670000, netSavings: 650000, rom: 3250, powerKw: 40.0, machine: "Hydraulic Press", subsystem: "Hydraulic Pressure Valve Blocks", component: "Seal Rings", rootCause: "Pressure seal rings wear", confidence: 89 }
+  };
+  
   // Real-time state
   // Default mock telemetry — ensures charts & UI work on Vercel (no backend needed)
   const defaultTelemetry = {
@@ -64,6 +74,9 @@ export default function App() {
     energy_saved: 342,
     hours_recovered: 12.0
   });
+  const [validationStates, setValidationStates] = useState({});
+  const [isOptimizingPlan, setIsOptimizingPlan] = useState(false);
+  const [isPreparingReport, setIsPreparingReport] = useState(false);
   const [failuresPrevented, setFailuresPrevented] = useState(4);
   const [expandedWhy, setExpandedWhy] = useState(false);
   const [incidents, setIncidents] = useState([]);
@@ -349,17 +362,8 @@ export default function App() {
     const base = telemetry[simMachine] || {};
     const health = base.health_score || 95;
     
-    // Machine financial base values
-    const financialBases = {
-      M1: { planned: 15000, failure_total: 180000 + (60000 * 5.0) },
-      M2: { planned: 25000, failure_total: 240000 + (80000 * 6.0) },
-      M3: { planned: 18000, failure_total: 210000 + (80000 * 6.0) },
-      M4: { planned: 10000, failure_total: 110000 + (40000 * 4.0) },
-      M5: { planned: 8000, failure_total: 90000 + (50000 * 3.0) },
-      M6: { planned: 20000, failure_total: 220000 + (90000 * 5.0) }
-    };
-    
-    const fBase = financialBases[simMachine] || { planned: 15000, failure_total: 300000 };
+    const fBaseInfo = MASTER_FINANCIAL_BASES[simMachine] || MASTER_FINANCIAL_BASES["M3"];
+    const fBase = { planned: fBaseInfo.plannedCost, failure_total: fBaseInfo.potentialLoss };
     
     if (simAction === "postpone") {
       return [0, 24, 48, 72, 96, 120].map(h => {
@@ -510,16 +514,8 @@ export default function App() {
     const baseTemp = machine.metrics?.temperature || 75;
     const baseLoad = machine.metrics?.load || 60;
     
-    // Financial base values per machine
-    const financialBases = {
-      M1: { planned: 15000, failure_total: 280000 },
-      M2: { planned: 25000, failure_total: 360000 },
-      M3: { planned: 18000, failure_total: 420000 },
-      M4: { planned: 10000, failure_total: 200000 },
-      M5: { planned: 8000, failure_total: 190000 },
-      M6: { planned: 20000, failure_total: 310000 },
-    };
-    const fBase = financialBases[simMachine] || { planned: 15000, failure_total: 300000 };
+    const fBaseInfo = MASTER_FINANCIAL_BASES[simMachine] || MASTER_FINANCIAL_BASES["M3"];
+    const fBase = { planned: fBaseInfo.plannedCost, failure_total: fBaseInfo.potentialLoss };
     const hours = parseFloat(simValue);
 
     let result;
@@ -643,6 +639,7 @@ export default function App() {
 
   // Optimize Maintenance Schedule
   const optimizeSchedule = async () => {
+    setIsOptimizingPlan(true);
     try {
       const res = await fetch("/api/maintenance/optimize", { method: "POST" });
       if (res.ok) {
@@ -650,6 +647,7 @@ export default function App() {
         if (data && data.schedule) {
           setSchedule(data.schedule);
           fetchIncidents();
+          setTimeout(() => setIsOptimizingPlan(false), 800);
           return;
         }
       }
@@ -657,6 +655,7 @@ export default function App() {
       console.warn("API optimization failed, running local engine:", e);
     }
     optimizeScheduleLocal();
+    setTimeout(() => setIsOptimizingPlan(false), 800);
   };
 
   // Complete Maintenance Task Local Fallback
@@ -732,6 +731,9 @@ export default function App() {
 
   // Inject Anomaly Local Fallback
   const injectAnomalyLocal = (mid, type) => {
+    // Set validation state to pending
+    setValidationStates(prev => ({ ...prev, [mid]: "pending" }));
+
     setTelemetry(prev => {
       const next = { ...prev };
       if (next[mid]) {
@@ -749,7 +751,7 @@ export default function App() {
             ...next[mid].ai_prediction,
             failure_probability: mid === "M3" ? 97.5 : 13.7,
             rul_hours: mid === "M3" ? 12 : 320,
-            recommendation: mid === "M3" ? "Replace Bearing Today" : "Schedule Inspection within 48 hrs"
+            recommendation: mid === "M3" ? "Likely Bearing Degradation. Urgent inspection recommended." : "Possible wear detected. Schedule inspection within 48 hrs."
           }
         };
       }
@@ -761,7 +763,7 @@ export default function App() {
       machine_id: mid,
       timestamp: new Date().toISOString(),
       type: "Fault Simulation",
-      action_taken: `Simulated anomaly (${type}) injected. Dispatching alerts to Edge diagnostic nodes.`,
+      action_taken: `Simulated anomaly (${type}) injected. Dispatching alerts to Edge diagnostic nodes. Maintenance Validation Required.`,
       resolved: false
     };
     setIncidents(prev => [newInc, ...prev]);
@@ -769,6 +771,7 @@ export default function App() {
 
   // Inject Anomaly
   const injectAnomaly = async () => {
+    setValidationStates(prev => ({ ...prev, [anomalyMachine]: "pending" }));
     try {
       const res = await fetch("/api/inject-anomaly", {
         method: "POST",
@@ -823,8 +826,11 @@ export default function App() {
     resetAllLocal();
   };
 
-  // Approve Recommendation / Workflow Integration
+  // Approve Executive Recommendation / Workflow Integration
   const approveRecommendation = (mid) => {
+    // Clear validation state on completion
+    setValidationStates(prev => ({ ...prev, [mid]: undefined }));
+
     setTelemetry(prev => {
       const next = { ...prev };
       if (next[mid]) {
@@ -834,14 +840,14 @@ export default function App() {
           anomaly_active: false,
           metrics: {
             ...next[mid].metrics,
-            temperature: mid === "M3" ? 70 : next[mid].metrics.temperature,
-            vibration: mid === "M3" ? 0.05 : next[mid].metrics.vibration,
-            load: mid === "M3" ? 60 : next[mid].metrics.load
+            temperature: mid === "M3" ? 38.0 : next[mid].metrics.temperature,
+            vibration: mid === "M3" ? 0.7 : next[mid].metrics.vibration,
+            load: mid === "M3" ? 55.0 : next[mid].metrics.load
           },
           ai_prediction: {
             ...next[mid].ai_prediction,
             failure_probability: 1.4,
-            rul_hours: 1000,
+            rul_hours: 980,
             recommendation: "Continue Normal Operations",
             action: "monitor"
           }
@@ -854,18 +860,9 @@ export default function App() {
     setDecisionsAccepted(prev => prev + 1);
     setFailuresPrevented(prev => prev + 1);
     
-    let savings = 0;
-    let downtime = 0;
-    if (mid === "M3") {
-      savings = 417000;
-      downtime = 6.0;
-    } else if (mid === "M2") {
-      savings = 335000;
-      downtime = 4.0;
-    } else {
-      savings = 265000;
-      downtime = 3.0;
-    }
+    const item = MASTER_FINANCIAL_BASES[mid] || MASTER_FINANCIAL_BASES["M3"];
+    const savings = item.netSavings;
+    const downtime = item.downtimeHrs;
 
     setFinancials(prev => ({
       ...prev,
@@ -878,13 +875,13 @@ export default function App() {
       machine_id: mid,
       machine_name: machineNamesMap[mid],
       scheduled_time: new Date(Date.now() + 3600000 * 2).toISOString(),
-      assigned_engineer: "Engineer 2 (Joint & Motor Specialist)",
-      required_parts: "Joint Bearings (HB-40), Lubricant",
+      assigned_engineer: "Maintenance Team Specialist",
+      required_parts: item.component + ", Lubricant",
       priority: mid === "M3" ? "CRITICAL" : "HIGH",
-      justification: "Approved by Plant Executive. Maintenance scheduled.",
+      justification: "Approve Executive Recommendation. Maintenance scheduled.",
       status: "scheduled",
-      maintenance_cost: mid === "M3" ? 18000 : 25000,
-      failure_cost_avoided: mid === "M3" ? 435000 : 360000,
+      maintenance_cost: item.plannedCost,
+      failure_cost_avoided: item.potentialLoss,
       net_savings: savings
     };
     setSchedule(prev => [newSlot, ...prev]);
@@ -894,7 +891,7 @@ export default function App() {
       machine_id: mid,
       timestamp: new Date().toISOString(),
       type: "AI Preventive Dispatch",
-      action_taken: `Executive approved maintenance for ${machineNamesMap[mid]}. Avoided ₹${(savings + 18000).toLocaleString()} total risk.`,
+      action_taken: `Approve Executive Recommendation for ${machineNamesMap[mid]}. Validated Business Impact: ₹${savings.toLocaleString()} saved.`,
       resolved: true
     };
     setIncidents(prev => [newInc, ...prev]);
@@ -905,7 +902,7 @@ export default function App() {
       {
         timestamp: new Date().toISOString(),
         type: "Recommendation Accepted",
-        event: `Decision to repair M3 dispatched. Scheduled tonight 22:00. Net Savings: ₹${savings.toLocaleString()}.`,
+        event: `Decision to repair M3 dispatched. Scheduled tonight 22:00. Validated Business Impact: ₹${savings.toLocaleString()}.`,
         status: "success"
       },
       ...prev
@@ -915,7 +912,7 @@ export default function App() {
       ...prev,
       {
         sender: "copilot",
-        text: `### ✅ Autonomous Dispatch Completed\n\nI have successfully logged your approval for **${machineNamesMap[mid]}** and scheduled maintenance. The incident log has been updated, and the expected downtime savings of **₹${savings.toLocaleString()}** have been recorded in our ledger.`
+        text: `### ✅ Approve Executive Recommendation Completed\n\nI have successfully logged your approval for **${machineNamesMap[mid]}** and scheduled maintenance. The incident log has been updated, and the Validated Business Impact of **₹${savings.toLocaleString()}** has been recorded in our ledger.`
       }
     ]);
 
@@ -959,12 +956,14 @@ export default function App() {
 
   // Export report — generated client-side so it works on Vercel (no backend required)
   const triggerReportExport = () => {
-    const machineNamesLocal = {
-      M1: "CNC Mill (M1)", M2: "Injection Molder (M2)", M3: "6-Axis Robot Arm (M3)",
-      M4: "Air Compressor (M4)", M5: "Smart Conveyor (M5)", M6: "Hydraulic Press (M6)"
-    };
-
-    const avgHealth = Object.values(telemetry).reduce((sum, m) => {
+    setIsPreparingReport(true);
+    setTimeout(() => {
+      const machineNamesLocal = {
+        M1: "CNC Mill (M1)", M2: "Injection Molder (M2)", M3: "6-Axis Robot Arm (M3)",
+        M4: "Air Compressor (M4)", M5: "Smart Conveyor (M5)", M6: "Hydraulic Press (M6)"
+      };
+  
+      const avgHealth = Object.values(telemetry).reduce((sum, m) => {
       const fp = m.ai_prediction?.failure_probability ?? 0;
       return sum + Math.max(0, 100 - fp);
     }, 0) / Object.keys(telemetry).length;
@@ -1062,43 +1061,106 @@ export default function App() {
     </div>
     <div class="meta-info">
       <strong>Date:</strong> ${now}<br>
-      <strong>Factory Status:</strong> <span class="status-badge ${factoryStatusClass}">${factoryStatusLabel}</span>
+      <strong>System Mode:</strong> <span class="status-badge status-green">Edge Simulation Mode</span>
     </div>
   </div>
 
-  <div class="grid">
-    <div class="card"><div class="title">Cost Saved Today</div><div class="value roi">&#x20B9;${(financials.cost_saved || 0).toLocaleString()}</div></div>
-    <div class="card"><div class="title">Prevented Downtime</div><div class="value">${financials.downtime_prevented ?? 0} hrs</div></div>
-    <div class="card"><div class="title">Energy Conserved</div><div class="value">${financials.energy_saved ?? 0} kWh</div></div>
-    <div class="card"><div class="title">Factory Health Index</div><div class="value">${avgHealth.toFixed(1)}%</div></div>
+  <!-- Section 1: Executive Summary -->
+  <div class="section">
+    <h2>1. Executive Summary</h2>
+    <p>This executive intelligence report summarizes the operational health, diagnostic findings, and business impact projections for the manufacturing facility. EdgeTwin AI integrates real-time telemetry, probabilistic root cause modeling, and maintenance scheduling to provide a comprehensive decision support system. AI autonomously generates recommendations while physical component validation remains engineer-assisted to maximize safety and precision.</p>
   </div>
 
+  <!-- Section 2: Factory Health & Operational KPIs -->
   <div class="section">
-    <h2>1. Live Asset Status &amp; Wear Analytics</h2>
+    <h2>2. Factory Health &amp; Operational KPIs</h2>
+    <div class="grid">
+      <div class="card"><div class="title">Validated Business Impact</div><div class="value roi">&#x20B9;${(financials.cost_saved || 0).toLocaleString()}</div></div>
+      <div class="card"><div class="title">Prevented Downtime</div><div class="value">${financials.downtime_prevented ?? 0} hrs</div></div>
+      <div class="card"><div class="title">Energy Conserved</div><div class="value">${financials.energy_saved ?? 0} kWh</div></div>
+      <div class="card"><div class="title">Factory Health Index</div><div class="value">${avgHealth.toFixed(1)}%</div></div>
+    </div>
+  </div>
+
+  <!-- Section 3: Critical Assets & Root Cause Analysis -->
+  <div class="section">
+    <h2>3. Critical Assets &amp; Root Cause Analysis</h2>
+    <p>Real-time edge sensor networks track machine wear patterns. Below is the current availability and prediction confidence for suspected degradations:</p>
     <table>
-      <thead><tr><th>Asset Name</th><th>Overall Health</th><th>Temp</th><th>Vibration</th><th>Load</th><th>Failure Probability</th><th>Est. RUL</th></tr></thead>
+      <thead><tr><th>Asset Name</th><th>Overall Health</th><th>Temp</th><th>Vibration</th><th>Load</th><th>Prediction Confidence</th><th>Est. RUL</th></tr></thead>
       <tbody>${machineRows}</tbody>
     </table>
   </div>
 
+  <!-- Section 4: Maintenance Plan & Scheduler Rationale -->
   <div class="section">
-    <h2>2. Production-Aware Maintenance Calendar</h2>
+    <h2>4. Maintenance Plan &amp; Scheduler Rationale</h2>
+    <p>Optimized schedules designed to align maintenance activities with off-peak production schedules, minimizing total factory downtime.</p>
     <table>
       <thead><tr><th>Scheduled Slot</th><th>Asset</th><th>Est. Duration</th><th>Required Spares</th><th>Assigned Engineer</th><th>Priority</th></tr></thead>
       <tbody>${scheduleRows}</tbody>
     </table>
   </div>
 
+  <!-- Section 5: Financial Impact & ROI Breakdown -->
   <div class="section">
-    <h2>3. Active &amp; Resolved Incidents Log (Last 15)</h2>
+    <h2>5. Financial Impact &amp; ROI Breakdown</h2>
+    <p>Quantifying cost avoidance comparing planned preventive maintenance against reactive breakdowns. Expected production loss is modeled on historical schedules and machine criticality.</p>
     <table>
-      <thead><tr><th>Time Detected</th><th>Machine</th><th>Incident Type</th><th>Severity</th><th>Action Details</th><th>Status</th></tr></thead>
-      <tbody>${incidentRows}</tbody>
+      <thead>
+        <tr>
+          <th>Asset Class</th>
+          <th>Planned Maintenance Cost</th>
+          <th>Unplanned Repair Cost</th>
+          <th>Hourly Production Loss Rate</th>
+          <th>Unplanned Downtime</th>
+          <th>ROM Ratio</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>6-Axis Robot (M3)</strong></td>
+          <td>₹18,000</td>
+          <td>₹2,10,000</td>
+          <td>₹80,000 / hr</td>
+          <td>6.0 hrs</td>
+          <td class="roi" style="color: #10b981; font-weight: bold;">3,733%</td>
+        </tr>
+        <tr>
+          <td><strong>Injection Molder (M2)</strong></td>
+          <td>₹25,000</td>
+          <td>₹2,40,000</td>
+          <td>₹80,000 / hr</td>
+          <td>6.0 hrs</td>
+          <td class="roi" style="color: #10b981; font-weight: bold;">2,780%</td>
+        </tr>
+        <tr>
+          <td><strong>CNC Mill (M1)</strong></td>
+          <td>₹15,000</td>
+          <td>₹1,80,000</td>
+          <td>₹60,000 / hr</td>
+          <td>5.0 hrs</td>
+          <td class="roi" style="color: #10b981; font-weight: bold;">3,100%</td>
+        </tr>
+      </tbody>
     </table>
   </div>
 
-  <div style="margin-top:50px;text-align:center;color:#9ca3af;font-size:11px;border-top:1px solid #f3f4f6;padding-top:15px;">
-    Report generated by EdgeTwin AI. Data sourced from live digital twin state.
+  <!-- Section 6: AI Recommendation & Decision Basis -->
+  <div class="section">
+    <h2>6. AI Recommendation &amp; Decision Basis</h2>
+    <p>Every operational decision generated by the system incorporates multi-criteria optimization: machine telemetry, failure probability, production schedules, machine criticality, spare parts availability, and production loss rates. Recommendations are locked until physical validation is completed by a maintenance engineer to ensure physical credibility.</p>
+  </div>
+
+  <!-- Section 7: Deployment Readiness -->
+  <div class="section">
+    <h2>7. Deployment Readiness</h2>
+    <p><strong>Prototype Maturity:</strong> Current demonstration runs on simulated factory telemetry. Production deployments support connections to local PLCs, SCADA networks, OPC-UA protocols, MQTT streams, SAP PM, IBM Maximo, and NVIDIA Jetson hardware acceleration blocks.</p>
+  </div>
+
+  <div style="margin-top:50px;text-align:center;color:#9ca3af;font-size:11px;border-top:1px solid #f3f4f6;padding-top:15px;line-height:1.6;font-family:monospace;">
+    Generated by EdgeTwin AI<br>
+    Autonomous Factory Decision Intelligence Platform
   </div>
 </body>
 </html>`;
@@ -1108,6 +1170,8 @@ export default function App() {
     const win = window.open(url, "_blank");
     // Revoke the object URL after the tab has loaded to free memory
     if (win) win.addEventListener("load", () => URL.revokeObjectURL(url), { once: true });
+    setIsPreparingReport(false);
+    }, 1000);
   };
 
   const getMachineColor = (status) => {
@@ -1140,15 +1204,18 @@ export default function App() {
     .map(([mid, m]) => ({ mid, fp: m.ai_prediction?.failure_probability ?? 0, status: m.status }))
     .sort((a, b) => b.fp - a.fp)[0] || { mid: "M1", fp: 0, status: "healthy" };
 
-  // Per-machine financial constants referenced by advisor panel and executive ribbon
-  const advisorData = {
-    M1: { netSavings: 265000, potentialLoss: 280000, maintCost: 15000, downtimeHrs: 3.0, prodSaved: 70000  },
-    M2: { netSavings: 335000, potentialLoss: 360000, maintCost: 25000, downtimeHrs: 4.0, prodSaved: 120000 },
-    M3: { netSavings: 417000, potentialLoss: 435000, maintCost: 18000, downtimeHrs: 6.0, prodSaved: 190000 },
-    M4: { netSavings: 150000, potentialLoss: 200000, maintCost: 10000, downtimeHrs: 2.0, prodSaved: 0      },
-    M5: { netSavings: 140000, potentialLoss: 180000, maintCost: 8000,  downtimeHrs: 1.5, prodSaved: 0      },
-    M6: { netSavings: 200000, potentialLoss: 220000, maintCost: 20000, downtimeHrs: 2.5, prodSaved: 0      },
-  };
+  // Per-machine financial constants derived from MASTER_FINANCIAL_BASES
+  const advisorData = {};
+  Object.keys(MASTER_FINANCIAL_BASES).forEach(mid => {
+    const item = MASTER_FINANCIAL_BASES[mid];
+    advisorData[mid] = {
+      netSavings: item.netSavings,
+      potentialLoss: item.potentialLoss,
+      maintCost: item.plannedCost,
+      downtimeHrs: item.downtimeHrs,
+      prodSaved: item.prodLossRate * item.downtimeHrs
+    };
+  });
   const selAdv    = advisorData[selectedMachine] || advisorData["M3"];
   const selStatus = telemetry[selectedMachine]?.status || "healthy";
   const selRUL    = telemetry[selectedMachine]?.ai_prediction?.rul_hours ?? 980;
@@ -1162,7 +1229,14 @@ export default function App() {
   const selROI             = (selAdv.netSavings / selAdv.maintCost).toFixed(1);
 
   return (
-    <div className="flex h-screen overflow-hidden text-slate-100 font-sans">
+    <div className="flex h-screen overflow-hidden text-slate-100 font-sans relative">
+      {isPreparingReport && (
+        <div className="fixed inset-0 bg-[#080b11]/90 z-50 flex flex-col items-center justify-center text-slate-300 font-mono text-xs">
+          <RefreshCw className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
+          <div className="text-sm font-bold text-white mb-1 font-sans">Compiling Executive Intelligence Report...</div>
+          <div className="text-[10px] text-slate-500">Aggregating Edge AI diagnostic matrices and validated ledgers</div>
+        </div>
+      )}
       {/* SIDEBAR NAVIGATION */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-52'} bg-[#0a0e17] border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto transition-all duration-300`}>
 
@@ -1195,7 +1269,7 @@ export default function App() {
         <nav className="px-3 pt-3 pb-2 space-y-0.5">
           {[
             { tab: "dashboard", icon: <Layers className="w-4 h-4 shrink-0" />, label: "Digital Twin Grid" },
-            { tab: "profit", icon: <DollarSign className="w-4 h-4 shrink-0" />, label: "Profit ROI Hub" },
+            { tab: "profit", icon: <Wallet className="w-4 h-4 shrink-0" />, label: "Profit ROI Hub" },
             { tab: "analytics", icon: <BarChart2 className="w-4 h-4 shrink-0" />, label: "Analytics & XAI" },
             { tab: "whatif", icon: <RefreshCw className="w-4 h-4 shrink-0" />, label: "What-If Sandbox" },
             { tab: "projections", icon: <Clock className="w-4 h-4 shrink-0" />, label: "Scenario Projections" },
@@ -1295,6 +1369,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            {wsConnected ? (
+              <span className="bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 font-semibold px-2 py-1 rounded-lg text-[10px] tracking-wide font-mono">
+                LIVE ENTERPRISE MODE
+              </span>
+            ) : (
+              <span className="bg-amber-950/40 text-amber-400 border border-amber-900/30 font-semibold px-2 py-1 rounded-lg text-[10px] tracking-wide font-mono animate-pulse">
+                RUNNING IN EDGE SIMULATION MODE
+              </span>
+            )}
+            
             <button 
               onClick={triggerReportExport}
               className="bg-slate-800 hover:bg-slate-700 hover:text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition"
@@ -1372,12 +1456,26 @@ export default function App() {
                           </div>
                         </div>
                         {(isCrit || isWarn) && (
-                          <button
-                            onClick={() => { setActiveTab("planner"); optimizeSchedule(); }}
-                            className={`shrink-0 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition active:scale-95 text-white ${isCrit ? "bg-rose-700 hover:bg-rose-600" : "bg-amber-600 hover:bg-amber-500"}`}
-                          >
-                            Approve Plan
-                          </button>
+                          validationStates[topM.mid] !== "verified" ? (
+                            <button
+                              onClick={() => {
+                                setSelectedMachine(topM.mid);
+                                // Scroll to or focus right column
+                              }}
+                              className="shrink-0 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition active:scale-95 text-white bg-amber-600 hover:bg-amber-500"
+                            >
+                              🔧 Run Verification
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                approveRecommendation(topM.mid);
+                              }}
+                              className={`shrink-0 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition active:scale-95 text-white ${isCrit ? "bg-rose-700 hover:bg-rose-600" : "bg-emerald-600 hover:bg-emerald-500"}`}
+                            >
+                              Approve Executive Recommendation
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
@@ -1511,15 +1609,37 @@ export default function App() {
                 
                 {/* 1. Operational Decision Intelligence Engine™ */}
                 <div className={`glass-panel rounded-2xl p-5 border border-slate-800 shrink-0 ${walkthroughStep === 3 ? 'demo-highlight-ring' : ''}`}>
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
                     <div>
                       <h4 className="font-display font-bold text-sm text-white flex items-center gap-1.5">
                         <Cpu className="w-4 h-4 text-emerald-400" />
                         Operational Decision Intelligence Engine™
                       </h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Prescriptive simulator comparing strategies for {machineNamesMap[selectedMachine]}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">AI-assisted Prescriptive simulator comparing strategies for {machineNamesMap[selectedMachine]}</p>
                     </div>
-                    <span className="bg-slate-900 border border-slate-850 px-2 py-0.5 rounded text-[9px] font-mono text-emerald-400 font-bold uppercase">Pat. Pending</span>
+                    <span className="bg-slate-900 border border-slate-850 px-2 py-0.5 rounded text-[9px] font-mono text-emerald-400 font-bold uppercase">Decision Support Mode</span>
+                  </div>
+
+                  {/* Decision engine inputs list */}
+                  <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-850 text-[10px] font-mono text-slate-400 mb-4">
+                    <span className="text-[9px] font-bold text-slate-500 block mb-1.5 tracking-wider">ACTIVE OPTIMIZATION INPUT CHANNELS:</span>
+                    <div className="grid grid-cols-3 gap-y-1 gap-x-2 text-[9px]">
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Machine Telemetry</div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Failure Probability</div>
+                      <div className="flex items-center gap-1">
+                        {validationStates[selectedMachine] === "verified" ? (
+                          <span className="text-emerald-400 font-bold">✓ Inspection Verified</span>
+                        ) : (
+                          <span className="text-amber-500 font-bold">⚠ Inspection Pending</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Production Schedule</div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Machine Criticality</div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Spare Parts Status</div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Maintenance Cost</div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Production Loss</div>
+                      <div className="flex items-center gap-1"><span className="text-emerald-400">✓</span> Historical Logs</div>
+                    </div>
                   </div>
 
                   {telemetry[selectedMachine]?.status !== "healthy" ? (
@@ -1578,18 +1698,30 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-2 text-xs pt-1 border-t border-slate-850">
+                      <div className="flex justify-end gap-2 text-xs pt-1 border-t border-slate-850 items-center">
                         <span className="text-slate-400 flex items-center gap-1.5 mr-auto italic text-[11px]">
-                          *Decision optimizer ranks Option C highest based on risk mitigation & zero delivery delay.
+                          *Optimizer ranks Option C highest. AI recommends autonomously; verification is engineer-assisted.
                         </span>
-                        <button
-                          onClick={() => {
-                            approveRecommendation(selectedMachine);
-                          }}
-                          className={`bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1 glow-emerald ${walkthroughStep === 3 ? 'demo-highlight-ring' : ''}`}
-                        >
-                          Approve Recommended Plan
-                        </button>
+                        {validationStates[selectedMachine] !== "verified" ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-amber-500 font-mono text-[10px] font-semibold">⚠️ Validation Pending</span>
+                            <button
+                              disabled
+                              className="bg-slate-800 text-slate-500 border border-slate-700/50 font-bold py-1.5 px-4 rounded-lg cursor-not-allowed text-[11px]"
+                            >
+                              Approve Executive Recommendation
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              approveRecommendation(selectedMachine);
+                            }}
+                            className={`bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-4 rounded-lg transition active:scale-95 flex items-center gap-1 glow-emerald text-[11px] ${walkthroughStep === 3 ? 'demo-highlight-ring' : ''}`}
+                          >
+                            Approve Executive Recommendation
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -1768,46 +1900,124 @@ export default function App() {
                         </div>
 
                         <div className="space-y-4">
-                          <div className="bg-slate-950/40 rounded-lg p-3 border border-white/5 space-y-1">
-                            <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Recommended Action</span>
-                            <span className="font-bold text-sm text-white block">
-                              {selStatus === 'critical' ? 'Replace Bearing During Night Shift' : selStatus === 'warning' ? 'Schedule Inspection Within 48 Hours' : 'Continue Normal Operations'}
-                            </span>
-                            <div className="flex items-center justify-between mt-2 gap-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] text-slate-400">Risk Assessment:</span>
-                                <span className={`text-[10px] font-bold status-transition ${selStatus === 'critical' ? 'text-rose-400' : selStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                  {selStatus === 'critical' ? 'CRITICAL RISK' : selStatus === 'warning' ? 'MEDIUM RISK' : 'LOW RISK'}
+                          {/* AI Predictions & Explainability Basis */}
+                          <div className="bg-slate-950/40 rounded-lg p-3 border border-white/5 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Prediction Confidence</span>
+                              <span className="font-mono text-emerald-400 font-bold text-sm">{MASTER_FINANCIAL_BASES[selectedMachine].confidence}%</span>
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between text-slate-300">
+                                <span>Likely Root Cause:</span>
+                                <span className="text-white font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].rootCause}</span>
+                              </div>
+                              <div className="flex justify-between text-slate-300">
+                                <span>Evidence Used:</span>
+                                <span className="text-slate-400 text-right text-[10px] max-w-[70%]">
+                                  Temp {telemetry[selectedMachine].metrics.temperature}°C | Vib {telemetry[selectedMachine].metrics.vibration} mm/s
                                 </span>
                               </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-[8px] text-slate-500 block uppercase tracking-wider font-mono">Decision Confidence</span>
-                                <div className="flex items-center gap-1 justify-end">
-                                  <span className={`text-xs font-bold ${selStatus === 'critical' ? 'text-rose-400' : selStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>{selConfidence}%</span>
-                                  <span className="text-[8px] text-slate-500">· {selConfidenceLabel}</span>
-                                </div>
+                              <div className="flex justify-between text-slate-300">
+                                <span>Decision Basis:</span>
+                                <span className="text-slate-400 text-[10px]">Downtime cost &amp; load balance optimization</span>
                               </div>
                             </div>
-                            <p className="text-[9px] text-slate-500 italic mt-1.5 leading-relaxed border-t border-white/5 pt-1.5">
-                              This recommendation maximizes operational availability while minimizing production loss.
-                            </p>
                           </div>
 
                           {selStatus !== 'healthy' ? (
-                            <div className="space-y-3">
+                            <div className="space-y-4">
+                              
+                              {/* Maintenance Validation Stepper */}
+                              <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3">
+                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Maintenance Validation</span>
+                                
+                                {(() => {
+                                  const valState = validationStates[selectedMachine] || "pending";
+                                  if (valState === "pending") {
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
+                                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                          <span>Inspection Status: Pending Physical Audit</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 leading-relaxed">AI has flagged potential degradation. Physical validation is required to confirm subsystem components.</p>
+                                        <button
+                                          onClick={() => {
+                                            setValidationStates(prev => ({ ...prev, [selectedMachine]: "verifying" }));
+                                          }}
+                                          className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-1.5 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1"
+                                        >
+                                          <span>Dispatch Technician for Validation</span>
+                                        </button>
+                                      </div>
+                                    );
+                                  } else if (valState === "verifying") {
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-xs text-indigo-400 font-medium">
+                                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                          <span>Inspection Status: Physical Verification In Progress</span>
+                                        </div>
+                                        {/* Stepper hierarchy */}
+                                        <div className="flex flex-col gap-1 items-center bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 text-[11px] leading-tight">
+                                          <div className="flex justify-between w-full"><span className="text-slate-500">Machine:</span><span className="text-white font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].machine}</span></div>
+                                          <div className="text-slate-700">↓</div>
+                                          <div className="flex justify-between w-full"><span className="text-slate-500">Subsystem:</span><span className="text-white font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].subsystem}</span></div>
+                                          <div className="text-slate-700">↓</div>
+                                          <div className="flex justify-between w-full"><span className="text-slate-500">Component:</span><span className="text-amber-400 font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span></div>
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            setValidationStates(prev => ({ ...prev, [selectedMachine]: "verified" }));
+                                          }}
+                                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1"
+                                        >
+                                          <span>Confirm Confirmed Component</span>
+                                        </button>
+                                      </div>
+                                    );
+                                  } else { // verified
+                                    return (
+                                      <div className="space-y-2 text-xs">
+                                        <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                                          <CheckCircle className="w-4 h-4 shrink-0" />
+                                          <span>Inspection Status: Completed</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1 items-center bg-slate-950/60 p-2.5 rounded-lg border border-slate-850 text-[11px] leading-tight">
+                                          <div className="flex justify-between w-full"><span className="text-slate-500">Machine:</span><span className="text-white font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].machine}</span></div>
+                                          <div className="text-slate-700">↓</div>
+                                          <div className="flex justify-between w-full"><span className="text-slate-500">Subsystem:</span><span className="text-white font-semibold">{MASTER_FINANCIAL_BASES[selectedMachine].subsystem}</span></div>
+                                          <div className="text-slate-700">↓</div>
+                                          <div className="flex justify-between w-full"><span className="text-slate-500">Component:</span><span className="text-emerald-400 font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span></div>
+                                        </div>
+                                        <div className="text-[10px] text-slate-500 text-center font-mono">Verified by: Maintenance Team</div>
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                              </div>
+
+                              {/* Business Justification Ledger */}
                               <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-2">
-                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block mb-1 font-mono">Business Justification Ledger</span>
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Business Justification Ledger</span>
+                                  {validationStates[selectedMachine] === "verified" ? (
+                                    <span className="bg-emerald-950/60 text-emerald-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-emerald-900/40">VALIDATED BUSINESS IMPACT</span>
+                                  ) : (
+                                    <span className="bg-amber-950/40 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-900/30">PRELIMINARY AI ESTIMATE</span>
+                                  )}
+                                </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Maintenance Cost:</span>
                                   <span className="font-mono text-white">₹{selAdv.maintCost.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Failure Cost if Ignored:</span>
-                                  <span className="font-mono text-white">₹{selectedMachine === 'M3' ? '2,45,000' : selectedMachine === 'M2' ? '2,40,000' : '2,10,000'}</span>
+                                  <span className="font-mono text-white">₹{selAdv.potentialLoss.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                   <span className="text-slate-400">Estimated Production Loss:</span>
-                                  <span className="font-mono text-rose-400">{selAdv.prodSaved > 0 ? `₹${selAdv.prodSaved.toLocaleString()}` : '—'}</span>
+                                  <span className="font-mono text-rose-400">₹{selAdv.prodSaved.toLocaleString()}</span>
                                 </div>
                                 <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
                                   <span className="text-xs font-semibold text-emerald-300">Net Business Gain</span>
@@ -1823,7 +2033,7 @@ export default function App() {
                                 </div>
                                 <div>
                                   <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Production Saved</span>
-                                  <span className="text-xs font-bold text-emerald-400">{selAdv.prodSaved > 0 ? `₹${selAdv.prodSaved.toLocaleString()}` : '—'}</span>
+                                  <span className="text-xs font-bold text-emerald-400">₹{selAdv.prodSaved.toLocaleString()}</span>
                                 </div>
                                 <div>
                                   <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Estimated ROI</span>
@@ -1831,7 +2041,7 @@ export default function App() {
                                 </div>
                               </div>
 
-                              <div className="flex gap-2">
+                              <div className="flex flex-col gap-2">
                                 {approvedMachines.has(selectedMachine) ? (
                                   <div className="flex-1 bg-emerald-950/60 border border-emerald-700/50 text-emerald-400 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5">
                                     <CheckCircle className="w-3.5 h-3.5" /> Dispatched ✓
@@ -1839,14 +2049,22 @@ export default function App() {
                                 ) : (
                                   <button
                                     onClick={() => approveRecommendation(selectedMachine)}
-                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 glow-emerald"
+                                    disabled={validationStates[selectedMachine] !== "verified"}
+                                    className={`flex-1 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "verified" ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer glow-emerald active:scale-95" : "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"}`}
                                   >
-                                    <CheckCircle className="w-3.5 h-3.5" /> Approve Plan
+                                    <CheckCircle className="w-3.5 h-3.5" /> Approve Executive Recommendation
                                   </button>
                                 )}
+                                
+                                {validationStates[selectedMachine] !== "verified" && (
+                                  <p className="text-[9px] text-amber-500 text-center italic mt-0.5 leading-normal">
+                                    *Complete Maintenance Validation to approve recommended action.
+                                  </p>
+                                )}
+                                
                                 <button
                                   onClick={() => setActiveTab("opportunities")}
-                                  className="flex-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white py-2 rounded-lg font-semibold text-xs transition border border-slate-700"
+                                  className="flex-1 bg-slate-850 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white py-2 rounded-lg font-semibold text-xs transition border border-slate-700"
                                 >
                                   Compare Alternatives
                                 </button>
@@ -2016,7 +2234,7 @@ export default function App() {
               <div className="grid grid-cols-4 gap-6">
                 <div className="glass-panel border border-slate-800 rounded-2xl p-5 flex items-center gap-4 relative overflow-hidden">
                   <div className="w-12 h-12 bg-emerald-500/10 rounded-xl border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                    <DollarSign className="w-6 h-6" />
+                    <Wallet className="w-6 h-6" />
                   </div>
                   <div>
                     <span className="text-xs text-slate-400 block font-mono">COST SAVED TODAY</span>
@@ -2559,7 +2777,13 @@ export default function App() {
               </div>
 
               {/* Maintenance Schedule grid */}
-              <div className="glass-panel border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="glass-panel border border-slate-800 rounded-2xl overflow-hidden relative">
+                {isOptimizingPlan && (
+                  <div className="absolute inset-0 bg-[#080b11]/85 z-10 flex flex-col items-center justify-center text-slate-300 text-xs font-mono">
+                    <RefreshCw className="w-8 h-8 animate-spin text-emerald-400 mb-2" />
+                    Optimizing schedule...
+                  </div>
+                )}
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-slate-900/60 border-b border-slate-800 text-slate-300 text-xs font-semibold">
@@ -2575,8 +2799,8 @@ export default function App() {
                   <tbody className="divide-y divide-slate-800/40 text-xs">
                     {schedule.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="p-8 text-center text-slate-500">
-                          No services scheduled. Click "Optimize Plan" to calculate slots.
+                        <td colSpan="7" className="p-8 text-center text-slate-400 font-mono italic">
+                          No active maintenance required. All machinery nodes operating within optimal parameters.
                         </td>
                       </tr>
                     ) : (
@@ -2627,7 +2851,7 @@ export default function App() {
               <div className="glass-panel border border-slate-800 rounded-2xl p-6">
                 <div className="space-y-6 relative border-l border-slate-800 ml-4 pl-6 text-xs">
                   {incidents.length === 0 ? (
-                    <div className="text-slate-500 text-center py-4">No incidents logged.</div>
+                    <div className="text-slate-400 font-mono italic text-center py-6">No critical incidents detected. Factory operating within optimal parameters.</div>
                   ) : (
                     incidents.map((inc, i) => (
                       <div key={inc.id || i} className="relative">
@@ -2779,41 +3003,73 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-2 gap-6">
-                {/* EdgeTwin Intelligence Engine™ */}
-                <div className="glass-panel border border-slate-800 rounded-2xl p-6 col-span-1">
-                  <h3 className="font-bold text-md font-display text-white mb-1">EdgeTwin Intelligence Engine™</h3>
-                  <p className="text-[11px] text-slate-400 mb-4">A proprietary multi-layer AI decision framework combining 6 intelligence disciplines into one cohesive pipeline.</p>
+                {/* Left Column: Flowchart & Algorithm Panel */}
+                <div className="col-span-1 space-y-5 flex flex-col">
                   
-                  {/* SVG Pipeline Diagram */}
-                  <svg viewBox="0 0 280 480" className="w-full max-h-96" style={{fontSize:11}}>
-                    {[
-                      {label:"Sensor Telemetry",sub:"Temperature · Vibration · RPM",color:"#64748b",y:0},
-                      {label:"AI Risk Engine",sub:"Random Forest + Anomaly Detection",color:"#f59e0b",y:60},
-                      {label:"Decision Engine",sub:"Multi-criteria Decision Analysis",color:"#6366f1",y:120},
-                      {label:"Business Optimizer",sub:"ROI · ROM · Cost-Benefit Analysis",color:"#10b981",y:180},
-                      {label:"Maintenance Planner",sub:"NLP Scheduling + Technician Dispatch",color:"#10b981",y:240},
-                      {label:"Savings Calculator",sub:"Live avoided-loss ledger",color:"#22d3ee",y:300},
-                      {label:"Learning Engine",sub:"Model weight adjustment + Audit log",color:"#a855f7",y:360},
-                      {label:"Future Recommendations",sub:"Proactive factory intelligence",color:"#f43f5e",y:420},
-                    ].map((node, i) => (
-                      <g key={i}>
-                        {i > 0 && <line x1="140" y1={node.y - 3} x2="140" y2={node.y + 3} stroke="#1e293b" strokeWidth="2"/>}
-                        <rect x="20" y={node.y + 6} width="240" height="44" rx="8" fill="#060913" stroke={node.color} strokeWidth="1.5" opacity="0.95"/>
-                        <text x="140" y={node.y + 24} textAnchor="middle" fill={node.color} fontWeight="700" fontSize="11">{node.label}</text>
-                        <text x="140" y={node.y + 38} textAnchor="middle" fill="#64748b" fontSize="9">{node.sub}</text>
-                        {i < 7 && (
-                          <>
-                            <line x1="140" y1={node.y + 52} x2="140" y2={node.y + 64} stroke="#1e293b" strokeWidth="2" markerEnd="url(#arrow)"/>
-                            <polygon points={`135,${node.y+61} 145,${node.y+61} 140,${node.y+68}`} fill="#1e293b"/>
-                          </>
-                        )}
-                      </g>
-                    ))}
-                  </svg>
+                  {/* EdgeTwin AI Decision Intelligence Pipeline */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-6">
+                    <h3 className="font-bold text-md font-display text-white mb-1">EdgeTwin AI Decision Intelligence Pipeline</h3>
+                    <p className="text-[11px] text-slate-400 mb-4">A multi-layer decision pipeline integrating edge diagnostics with plant-level operational intelligence.</p>
+                    
+                    {/* SVG Pipeline Diagram */}
+                    <svg viewBox="0 0 280 670" className="w-full max-h-[580px]" style={{fontSize:10}}>
+                      {[
+                        {label:"1. Edge Sensors",sub:"Temperature · Vibration · Load",color:"#64748b",y:0},
+                        {label:"2. Signal Processing",sub:"Acoustic Filtering & Frequencies",color:"#64748b",y:55},
+                        {label:"3. Feature Extraction",sub:"RMS & Peak-to-Peak Amplitude",color:"#64748b",y:110},
+                        {label:"4. Edge AI Prediction",sub:"Local Machine Learning Ensembles",color:"#f59e0b",y:165},
+                        {label:"5. Failure Probability",sub:"Probabilistic Asset Wear Index %",color:"#f59e0b",y:220},
+                        {label:"6. Likely Root Cause Ranking",sub:"XAI Subsystem Localization",color:"#f59e0b",y:275},
+                        {label:"7. Maintenance Inspection",sub:"Technician Field Physical Audit",color:"#6366f1",y:330},
+                        {label:"8. Component Confirmation",sub:"Engineering Validation Input",color:"#6366f1",y:385},
+                        {label:"9. Business Cost Model",sub:"Downtime Loss vs. Planned Cost",color:"#10b981",y:440},
+                        {label:"10. Operational Decision Comparison",sub:"Prescriptive Strategy Evaluator",color:"#10b981",y:495},
+                        {label:"11. Maintenance Optimization",sub:"Production-Aware Scheduler",color:"#22d3ee",y:550},
+                        {label:"12. Executive Dashboard",sub:"CXO Ledger & Live Floorplan",color:"#a855f7",y:605},
+                      ].map((node, i) => (
+                        <g key={i}>
+                          {i > 0 && <line x1="140" y1={node.y - 3} x2="140" y2={node.y + 3} stroke="#1e293b" strokeWidth="1.5"/>}
+                          <rect x="20" y={node.y + 4} width="240" height="38" rx="6" fill="#060913" stroke={node.color} strokeWidth="1.2" opacity="0.95"/>
+                          <text x="140" y={node.y + 18} textAnchor="middle" fill={node.color} fontWeight="700" fontSize="10">{node.label}</text>
+                          <text x="140" y={node.y + 30} textAnchor="middle" fill="#64748b" fontSize="8">{node.sub}</text>
+                          {i < 11 && (
+                            <>
+                              <line x1="140" y1={node.y + 42} x2="140" y2={node.y + 55} stroke="#1e293b" strokeWidth="1.5"/>
+                              <polygon points={`136,${node.y+51} 144,${node.y+51} 140,${node.y+57}`} fill="#1e293b"/>
+                            </>
+                          )}
+                        </g>
+                      ))}
+                    </svg>
+                  </div>
+
+                  {/* Decision Intelligence Algorithm PPT Card */}
+                  <div className="glass-panel border border-slate-800 rounded-2xl p-5">
+                    <h3 className="font-bold text-md font-display text-white mb-2 pb-2 border-b border-slate-850">Decision Intelligence Algorithm</h3>
+                    <div className="space-y-3.5 text-xs font-sans">
+                      {[
+                        { step: "1. Data Acquisition", desc: "Machine telemetry collected from industrial sensors." },
+                        { step: "2. Feature Engineering", desc: "Temperature, vibration, pressure, load and energy features extracted." },
+                        { step: "3. Edge AI Prediction", desc: "Local AI estimates failure probability." },
+                        { step: "4. Root Cause Ranking", desc: "Most likely subsystem/component identified." },
+                        { step: "5. Maintenance Verification", desc: "Engineer validates the suspected component." },
+                        { step: "6. Financial Impact Analysis", desc: "Maintenance cost, downtime cost and production loss calculated." },
+                        { step: "7. Decision Comparison", desc: "Multiple maintenance strategies evaluated." },
+                        { step: "8. Optimization", desc: "Best operational strategy selected." },
+                        { step: "9. Continuous Learning", desc: "Historical outcomes improve future recommendations." }
+                      ].map((alg) => (
+                        <div key={alg.step} className="border-b border-slate-850/60 pb-2 last:border-0 last:pb-0">
+                          <div className="font-bold text-emerald-400 font-mono text-[11px] mb-0.5">{alg.step}</div>
+                          <p className="text-slate-400 leading-relaxed text-[11px]">{alg.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* Right column: TRL + Competitive Advantage + Risk Mitigation */}
-                <div className="col-span-1 space-y-5">
+                {/* Right Column: TRL + Competitive Advantage + Risk Mitigation */}
+                <div className="col-span-1 space-y-5 flex flex-col">
                   
                   {/* Technology Readiness Level */}
                   <div className="glass-panel border border-slate-800 rounded-2xl p-5">
@@ -2922,6 +3178,13 @@ export default function App() {
                     </div>
                   </div>
                   <div className="space-y-4">
+                    <div className="bg-indigo-950/25 border border-indigo-900/40 rounded-xl p-3.5 text-[11px] text-slate-300 flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-indigo-300 block mb-0.5 font-sans">Engineering Notice: Prototype Assumptions</strong>
+                        Current prototype demonstrates the complete decision workflow using simulated industrial telemetry. Production deployment supports integration with PLC, SCADA, OPC-UA, MQTT, Industrial IoT Sensors, SAP PM, IBM Maximo, and NVIDIA Jetson.
+                      </div>
+                    </div>
                     <div>
                       <span className="text-[10px] uppercase tracking-wider text-slate-500 font-mono block mb-2">Current Demo Source</span>
                       <div className="space-y-1 text-xs text-slate-300">

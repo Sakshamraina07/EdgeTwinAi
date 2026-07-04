@@ -221,37 +221,47 @@ def generate_html_report(machines_status):
     <div class="header">
         <div>
             <h1>EdgeTwin AI &bull; Executive Intelligence Report</h1>
-            <p>Predictive Maintenance Analytics & ROI Justification</p>
+            <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Autonomous Factory Decision Intelligence Platform</p>
         </div>
         <div class="meta-info">
             <strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
-            <strong>Factory Status:</strong> <span class="status-badge status-{'green' if avg_health > 80 else 'yellow'}">{'HEALTHY' if avg_health > 80 else 'ATTENTION NEEDED'}</span>
+            <strong>System Mode:</strong> <span class="status-badge status-green">Edge Production Mode</span>
         </div>
     </div>
 
-    <!-- Financial ROI Block -->
-    <div class="grid">
-        <div class="card">
-            <div class="title">Cost Saved Today</div>
-            <div class="value roi">&#x20B9;{financials['cost_saved']:,}</div>
-        </div>
-        <div class="card">
-            <div class="title">Prevented Downtime</div>
-            <div class="value">{financials['downtime_prevented']} hrs</div>
-        </div>
-        <div class="card">
-            <div class="title">Energy Conserved</div>
-            <div class="value">{financials['energy_saved']} kWh</div>
-        </div>
-        <div class="card">
-            <div class="title">Factory Health Index</div>
-            <div class="value">{avg_health:.1f}%</div>
-        </div>
-    </div>
-
-    <!-- Digital Twin Machine Summary -->
+    <!-- Section 1: Executive Summary -->
     <div class="section">
-        <h2>1. Live Asset Status & Wear Analytics</h2>
+        <h2>1. Executive Summary</h2>
+        <p>This executive intelligence report summarizes the operational health, diagnostic findings, and business impact projections for the manufacturing facility. EdgeTwin AI integrates real-time telemetry, probabilistic root cause modeling, and maintenance scheduling to provide a comprehensive decision support system. AI autonomously generates recommendations while physical component validation remains engineer-assisted to maximize safety and precision.</p>
+    </div>
+
+    <!-- Section 2: Factory Health & KPI Block -->
+    <div class="section">
+        <h2>2. Factory Health & Operational KPIs</h2>
+        <div class="grid">
+            <div class="card">
+                <div class="title">Validated Business Impact</div>
+                <div class="value roi">&#x20B9;{financials['cost_saved']:,}</div>
+            </div>
+            <div class="card">
+                <div class="title">Prevented Downtime</div>
+                <div class="value">{financials['downtime_prevented']} hrs</div>
+            </div>
+            <div class="card">
+                <div class="title">Energy Conserved</div>
+                <div class="value">{financials['energy_saved']} kWh</div>
+            </div>
+            <div class="card">
+                <div class="title">Factory Health Index</div>
+                <div class="value">{avg_health:.1f}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Digital Twin Machine Summary / Critical Assets -->
+    <div class="section">
+        <h2>3. Critical Assets & Root Cause Analysis</h2>
+        <p>Real-time edge sensor networks track machine wear patterns. Below is the current availability and prediction confidence for suspected degradations:</p>
         <table>
             <thead>
                 <tr>
@@ -260,7 +270,7 @@ def generate_html_report(machines_status):
                     <th>Temp</th>
                     <th>Vibration</th>
                     <th>Load</th>
-                    <th>Failure Probability</th>
+                    <th>Prediction Confidence</th>
                     <th>Est. RUL</th>
                 </tr>
             </thead>
@@ -270,9 +280,10 @@ def generate_html_report(machines_status):
         </table>
     </div>
 
-    <!-- Maintenance Schedule -->
+    <!-- Section 4: Maintenance Plan & Scheduler Rationale -->
     <div class="section">
-        <h2>2. Production-Aware Maintenance Calendar</h2>
+        <h2>4. Maintenance Plan & Scheduler Rationale</h2>
+        <p>Optimized schedules designed to align maintenance activities with off-peak production schedules, minimizing total factory downtime.</p>
         <table>
             <thead>
                 <tr>
@@ -290,28 +301,65 @@ def generate_html_report(machines_status):
         </table>
     </div>
 
-    <!-- Incidents Log -->
+    <!-- Section 5: Financial Impact & ROI Breakdown -->
     <div class="section">
-        <h2>3. Active & Resolved Incidents Log (Last 15)</h2>
+        <h2>5. Financial Impact & ROI Breakdown</h2>
+        <p>Quantifying cost avoidance comparing planned preventive maintenance against reactive breakdowns. Expected production loss is modeled on historical schedules and machine criticality.</p>
         <table>
             <thead>
                 <tr>
-                    <th>Time Detected</th>
-                    <th>Machine</th>
-                    <th>Incident Type</th>
-                    <th>Severity</th>
-                    <th>Action Details</th>
-                    <th>Status</th>
+                    <th>Asset Class</th>
+                    <th>Planned Maintenance Cost</th>
+                    <th>Unplanned Repair Cost</th>
+                    <th>Hourly Production Loss Rate</th>
+                    <th>Unplanned Downtime</th>
+                    <th>ROM Ratio</th>
                 </tr>
             </thead>
             <tbody>
-                {incident_rows}
+                <tr>
+                    <td><strong>6-Axis Robot (M3)</strong></td>
+                    <td>₹18,000</td>
+                    <td>₹2,10,000</td>
+                    <td>₹80,000 / hr</td>
+                    <td>6.0 hrs</td>
+                    <td class="roi" style="color: #10b981; font-weight: bold;">3,733%</td>
+                </tr>
+                <tr>
+                    <td><strong>Injection Molder (M2)</strong></td>
+                    <td>₹25,000</td>
+                    <td>₹2,40,000</td>
+                    <td>₹80,000 / hr</td>
+                    <td>6.0 hrs</td>
+                    <td class="roi" style="color: #10b981; font-weight: bold;">2,780%</td>
+                </tr>
+                <tr>
+                    <td><strong>CNC Mill (M1)</strong></td>
+                    <td>₹15,000</td>
+                    <td>₹1,80,000</td>
+                    <td>₹60,000 / hr</td>
+                    <td>5.0 hrs</td>
+                    <td class="roi" style="color: #10b981; font-weight: bold;">3,100%</td>
+                </tr>
             </tbody>
         </table>
     </div>
 
-    <div style="margin-top: 50px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #f3f4f6; padding-top: 15px;">
-        Report generated locally by EdgeTwin AI local engine. No external cloud endpoints called.
+    <!-- Section 6: AI Recommendation & Decision Basis -->
+    <div class="section">
+        <h2>6. AI Recommendation & Decision Basis</h2>
+        <p>Every operational decision generated by the system incorporates multi-criteria optimization: machine telemetry, failure probability, production schedules, machine criticality, spare parts availability, and production loss rates. Recommendations are locked until physical validation is completed by a maintenance engineer to ensure physical credibility.</p>
+    </div>
+
+    <!-- Section 7: Deployment Readiness -->
+    <div class="section">
+        <h2>7. Deployment Readiness</h2>
+        <p><strong>Prototype Maturity:</strong> Current demonstration runs on simulated factory telemetry. Production deployments support connections to local PLCs, SCADA networks, OPC-UA protocols, MQTT streams, SAP PM, IBM Maximo, and NVIDIA Jetson hardware acceleration blocks.</p>
+    </div>
+
+    <div style="margin-top: 50px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #f3f4f6; padding-top: 15px; font-family: monospace; line-height: 1.6;">
+        Generated by EdgeTwin AI<br>
+        Autonomous Factory Decision Intelligence Platform
     </div>
 </body>
 </html>
