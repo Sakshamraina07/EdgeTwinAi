@@ -3131,7 +3131,7 @@ export default function App() {
                   <div className="border-t border-slate-800 pt-3.5 mt-4 flex items-center justify-between text-[11px]">
                     <span className="text-emerald-400 font-bold font-mono">Est. Savings: ₹1,200/day</span>
                     <button 
-                      onClick={() => sendCopilotQuery("Show energy opportunities")}
+                      onClick={() => { setActiveTab("dashboard"); setSelectedMachine("M2"); }}
                       className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-0.5 transition"
                     >
                       Analyze Opportunity <ChevronRight className="w-3.5 h-3.5" />
@@ -3154,7 +3154,7 @@ export default function App() {
                   <div className="border-t border-slate-800 pt-3.5 mt-4 flex items-center justify-between text-[11px]">
                     <span className="text-emerald-400 font-bold font-mono">Est. Savings: Prevents Overheat Fault</span>
                     <button 
-                      onClick={() => sendCopilotQuery("Can production continue until tomorrow?")}
+                      onClick={() => { setActiveTab("dashboard"); setSelectedMachine("M1"); }}
                       className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-0.5 transition"
                     >
                       Analyze Opportunity <ChevronRight className="w-3.5 h-3.5" />
@@ -3177,7 +3177,7 @@ export default function App() {
                   <div className="border-t border-slate-800 pt-3.5 mt-4 flex items-center justify-between text-[11px]">
                     <span className="text-emerald-400 font-bold font-mono">Est. Savings: ₹6,72,000 Saved</span>
                     <button 
-                      onClick={() => sendCopilotQuery("Why is Machine 3 overheating?")}
+                      onClick={() => { setActiveTab("dashboard"); setSelectedMachine("M3"); }}
                       className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-0.5 transition"
                     >
                       Inspect Lubricant <ChevronRight className="w-3.5 h-3.5" />
@@ -3200,7 +3200,7 @@ export default function App() {
                   <div className="border-t border-slate-800 pt-3.5 mt-4 flex items-center justify-between text-[11px]">
                     <span className="text-emerald-400 font-bold font-mono">Est. Savings: ₹2,400/month</span>
                     <button 
-                      onClick={() => sendCopilotQuery("Show the most energy inefficient machine.")}
+                      onClick={() => { setActiveTab("dashboard"); setSelectedMachine("M4"); }}
                       className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-0.5 transition"
                     >
                       Apply Smart Sleep <ChevronRight className="w-3.5 h-3.5" />
