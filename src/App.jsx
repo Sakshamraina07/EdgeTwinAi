@@ -610,31 +610,6 @@ export default function App() {
     }
   }, [simMachine, simAction, simValue, activeTab]);
 
-  // Smooth count-up animation for overall factory health
-  useEffect(() => {
-    let start = animatedHealth;
-    let end = factoryHealthPct;
-    if (Math.abs(start - end) < 0.1) {
-      setAnimatedHealth(end);
-      return;
-    }
-    const duration = 1200; // 1.2s smooth count-up
-    const startTime = performance.now();
-    let animId;
-    const update = (now) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      const easedProgress = progress * (2 - progress); // Ease Out
-      const current = start + (end - start) * easedProgress;
-      setAnimatedHealth(current);
-      if (progress < 1) {
-        animId = requestAnimationFrame(update);
-      }
-    };
-    animId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animId);
-  }, [factoryHealthPct]);
-
   // Generate historical data array for Recharts based on selected machine metrics
   useEffect(() => {
     if (!telemetry[selectedMachine]) return;
@@ -1697,6 +1672,31 @@ export default function App() {
   const factoryHealthPct = Object.values(telemetry).reduce(
     (sum, m) => sum + Math.max(0, 100 - (m.ai_prediction?.failure_probability ?? 0)), 0
   ) / Math.max(1, Object.keys(telemetry).length);
+
+  // Smooth count-up animation for overall factory health (defined after factoryHealthPct to avoid TDZ)
+  useEffect(() => {
+    let start = animatedHealth;
+    let end = factoryHealthPct;
+    if (Math.abs(start - end) < 0.1) {
+      setAnimatedHealth(end);
+      return;
+    }
+    const duration = 1200; // 1.2s smooth count-up
+    const startTime = performance.now();
+    let animId;
+    const update = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const easedProgress = progress * (2 - progress); // Ease Out
+      const current = start + (end - start) * easedProgress;
+      setAnimatedHealth(current);
+      if (progress < 1) {
+        animId = requestAnimationFrame(update);
+      }
+    };
+    animId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animId);
+  }, [factoryHealthPct]);
 
   const topRiskEntry = Object.entries(telemetry)
     .map(([mid, m]) => ({ mid, fp: m.ai_prediction?.failure_probability ?? 0, status: m.status }))
