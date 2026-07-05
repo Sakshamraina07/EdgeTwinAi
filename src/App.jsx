@@ -117,6 +117,25 @@ export default function App() {
   const [schedule, setSchedule] = useState([]);
   const [selectedMachine, setSelectedMachine] = useState("M3"); // Default to M3 Robot Arm (showcase example)
   const [wsConnected, setWsConnected] = useState(false);
+  const [maintenanceWorkflows, setMaintenanceWorkflows] = useState({});
+  const [animatedHealth, setAnimatedHealth] = useState(80.5);
+  const [maintCompletionForms, setMaintCompletionForms] = useState({});
+
+  const handleCompletionFormChange = (mid, field, value) => {
+    setMaintCompletionForms(prev => ({
+      ...prev,
+      [mid]: {
+        ...(prev[mid] || {
+          techName: "Engineer Specialist A",
+          empId: "EMP-2026-001",
+          duration: 87,
+          component: MASTER_FINANCIAL_BASES[mid]?.component || "Bearing",
+          remarks: "Calibrated and replaced component. Functional rotation test passed."
+        }),
+        [field]: value
+      }
+    }));
+  };
 
   // Walkthrough & Scenario states
   const [walkthroughStep, setWalkthroughStep] = useState(0); // 0 = inactive, 1-6 = steps
@@ -591,6 +610,31 @@ export default function App() {
     }
   }, [simMachine, simAction, simValue, activeTab]);
 
+  // Smooth count-up animation for overall factory health
+  useEffect(() => {
+    let start = animatedHealth;
+    let end = factoryHealthPct;
+    if (Math.abs(start - end) < 0.1) {
+      setAnimatedHealth(end);
+      return;
+    }
+    const duration = 1200; // 1.2s smooth count-up
+    const startTime = performance.now();
+    let animId;
+    const update = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const easedProgress = progress * (2 - progress); // Ease Out
+      const current = start + (end - start) * easedProgress;
+      setAnimatedHealth(current);
+      if (progress < 1) {
+        animId = requestAnimationFrame(update);
+      }
+    };
+    animId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animId);
+  }, [factoryHealthPct]);
+
   // Generate historical data array for Recharts based on selected machine metrics
   useEffect(() => {
     if (!telemetry[selectedMachine]) return;
@@ -839,6 +883,9 @@ export default function App() {
     setFailuresPrevented(4);
     setDecisionsAccepted(14);
     setDecisionQualityScore(94);
+    setAiAdoptionTrustScore(94.2);
+    setMaintenanceWorkflows({});
+    setMaintCompletionForms({});
   };
 
   // Reset All Machines
@@ -861,58 +908,73 @@ export default function App() {
   };
 
   // Approve Executive Recommendation / Workflow Integration
-  const approveRecommendation = (mid) => {
-    // Clear validation state on completion
-    setValidationStates(prev => ({ ...prev, [mid]: undefined }));
-
-    setTelemetry(prev => {
-      const next = { ...prev };
-      if (next[mid]) {
-        next[mid] = {
-          ...next[mid],
-          status: "healthy",
-          anomaly_active: false,
-          metrics: {
-            ...next[mid].metrics,
-            temperature: mid === "M3" ? 38.0 : next[mid].metrics.temperature,
-            vibration: mid === "M3" ? 0.7 : next[mid].metrics.vibration,
-            load: mid === "M3" ? 55.0 : next[mid].metrics.load
-          },
-          ai_prediction: {
-            ...next[mid].ai_prediction,
-            failure_probability: 1.4,
-            rul_hours: 980,
-            recommendation: "Continue Normal Operations",
-            action: "monitor"
-          }
-        };
-      }
-      return next;
-    });
-
-    setApprovedMachines(prev => new Set([...prev, mid]));
-    setDecisionsAccepted(prev => prev + 1);
-    setFailuresPrevented(prev => prev + 1);
-    
+  // Helper to start the sequential Close-Out Validation Workflow
+  const startMaintenanceWorkflow = (mid, decision) => {
     const item = MASTER_FINANCIAL_BASES[mid] || MASTER_FINANCIAL_BASES["M3"];
     const savings = item.netSavings;
-    const downtime = item.downtimeHrs;
+    const vf = validatedFinancials[mid] || MASTER_FINANCIAL_BASES[mid];
 
-    setFinancials(prev => ({
+    // Clear validation state on starting close-out
+    setValidationStates(prev => ({ ...prev, [mid]: undefined }));
+
+    if (decision === 'reject') {
+      setValidationStates(prev => ({ ...prev, [mid]: "rejected" }));
+      
+      // Update Analytics for Reject
+      setAdoptionAnalytics(prev => ({
+        ...prev,
+        totalGenerated: prev.totalGenerated + 1,
+        rejected: prev.rejected + 1,
+      }));
+      setAiAdoptionTrustScore(prev => Math.min(100, Math.max(0, prev - 1.5)));
+
+      setDecisionHistory(prev => [
+        {
+          timestamp: new Date().toISOString(),
+          machine: machineNamesMap[mid],
+          recommendation: item.rootCause,
+          decision: "Rejected",
+          reason: "Deferred by operator override",
+          impact: "Negative",
+          financialOutcome: `-₹${item.potentialLoss.toLocaleString()}`,
+          engineer: inspectionForms[mid]?.techName || "Plant Engineer",
+          isCorrect: vf.isCorrect,
+          outcome: "Deferred"
+        },
+        ...prev
+      ]);
+      return;
+    }
+
+    const slotId = "slot_" + mid + "_" + Date.now();
+    
+    // Initialize sequential maintenance workflow state
+    setMaintenanceWorkflows(prev => ({
       ...prev,
-      cost_saved: prev.cost_saved + savings,
-      downtime_prevented: parseFloat((prev.downtime_prevented + downtime).toFixed(1))
+      [mid]: {
+        slotId: slotId,
+        scheduled: true,
+        dispatched: false,
+        inProgress: false,
+        maintenanceCompleted: false,
+        recoveryValidated: false,
+        recovered: false,
+        incidentClosed: false,
+        completionForm: null,
+        decision: decision
+      }
     }));
 
+    // Add scheduled Work Order
     const newSlot = {
-      id: "slot_" + mid + "_" + Date.now(),
+      id: slotId,
       machine_id: mid,
       machine_name: machineNamesMap[mid],
       scheduled_time: new Date(Date.now() + 3600000 * 2).toISOString(),
-      assigned_engineer: "Maintenance Team Specialist",
+      assigned_engineer: "Plant Maintenance Team",
       required_parts: item.component + ", Lubricant",
       priority: mid === "M3" ? "CRITICAL" : "HIGH",
-      justification: "Approve Executive Recommendation. Maintenance scheduled.",
+      justification: `Work Order authorized. Strategy: Component Replacement.`,
       status: "scheduled",
       maintenance_cost: item.plannedCost,
       failure_cost_avoided: item.potentialLoss,
@@ -920,40 +982,311 @@ export default function App() {
     };
     setSchedule(prev => [newSlot, ...prev]);
 
-    const newInc = {
-      id: "inc_" + Date.now(),
-      machine_id: mid,
-      timestamp: new Date().toISOString(),
-      type: "AI Preventive Dispatch",
-      action_taken: `Approve Executive Recommendation for ${machineNamesMap[mid]}. Validated Business Impact: ₹${savings.toLocaleString()} saved.`,
-      resolved: true
-    };
-    setIncidents(prev => [newInc, ...prev]);
-
-    setDecisionQualityScore(prev => Math.min(100, prev + 1));
-
     setAiLearningLog(prev => [
       {
         timestamp: new Date().toISOString(),
-        type: "Recommendation Accepted",
-        event: `Decision to repair M3 dispatched. Scheduled tonight 22:00. Validated Business Impact: ₹${savings.toLocaleString()}.`,
+        type: "Work Order Authorized",
+        event: `Work Order ${slotId.split('_').slice(0, 2).join('-').toUpperCase()} authorized. Status: Scheduled.`,
         status: "success"
       },
       ...prev
     ]);
 
-    setChatHistory(prev => [
-      ...prev,
-      {
-        sender: "copilot",
-        text: `### ✅ Approve Executive Recommendation Completed\n\nI have successfully logged your approval for **${machineNamesMap[mid]}** and scheduled maintenance. The incident log has been updated, and the Validated Business Impact of **₹${savings.toLocaleString()}** has been recorded in our ledger.`
-      }
-    ]);
+    // Timed transition 1: Scheduled -> Dispatched (1.2s)
+    setTimeout(() => {
+      setMaintenanceWorkflows(prev => {
+        if (!prev[mid]) return prev;
+        return {
+          ...prev,
+          [mid]: {
+            ...prev[mid],
+            dispatched: true
+          }
+        };
+      });
+      setSchedule(prev => prev.map(s => s.id === slotId ? { ...s, status: "dispatched" } : s));
+      setAiLearningLog(prev => [
+        {
+          timestamp: new Date().toISOString(),
+          type: "Engineer Dispatch",
+          event: `Engineer Team A dispatched for Work Order ${slotId.split('_').slice(0, 2).join('-').toUpperCase()}.`,
+          status: "info"
+        },
+        ...prev
+      ]);
 
+      // Timed transition 2: Dispatched -> In Progress (1.5s later)
+      setTimeout(() => {
+        setMaintenanceWorkflows(prev => {
+          if (!prev[mid]) return prev;
+          return {
+            ...prev,
+            [mid]: {
+              ...prev[mid],
+              inProgress: true
+            }
+          };
+        });
+        setSchedule(prev => prev.map(s => s.id === slotId ? { ...s, status: "in_progress" } : s));
+      }, 1500);
+
+    }, 1200);
+
+    // Update walkthrough step if matching M3 demo path
     if (walkthroughStep === 4 && mid === "M3") {
       setWalkthroughStep(5);
-      // Don't auto-navigate — let user see the Dispatched confirmation first
     }
+  };
+
+  const approveRecommendation = (mid) => {
+    startMaintenanceWorkflow(mid, 'accept');
+  };
+
+  const getEvidenceChecklist = (component) => {
+    const comp = component?.toLowerCase() || "";
+    if (comp.includes("bearing")) {
+      return [
+        "Bearing Assembly Replaced",
+        "Lubrication Completed",
+        "Shaft Alignment Verified",
+        "Fasteners Torque Checked",
+        "Functional Rotation Test Passed",
+        "Safety Inspection Completed"
+      ];
+    } else if (comp.includes("seal")) {
+      return [
+        "Oil Seal Replaced",
+        "Pressure Leakage Check Passed",
+        "Contact Surfaces Cleaned",
+        "O-Ring Fitment Confirmed",
+        "Fluid Level Topped Up",
+        "Safety Inspection Completed"
+      ];
+    } else if (comp.includes("hose") || comp.includes("hydraulic")) {
+      return [
+        "Hydraulic Hose Replaced",
+        "Pressure Fluid Test Checked",
+        "Fittings Tightened to Spec",
+        "Bleed Air from Hydraulic Line",
+        "Safety Guard Re-installed",
+        "Safety Inspection Completed"
+      ];
+    } else {
+      return [
+        `${component || 'Component'} Replaced`,
+        "Calibration Checked",
+        "Functional Test Passed",
+        "Fasteners Torque Checked",
+        "Operational Parameters Verified",
+        "Safety Inspection Completed"
+      ];
+    }
+  };
+
+  const submitMaintenanceCompletion = (mid, formData) => {
+    setMaintenanceWorkflows(prev => {
+      const wf = prev[mid] || {};
+      return {
+        ...prev,
+        [mid]: {
+          ...wf,
+          showCompletionForm: false,
+          maintenanceCompleted: true,
+          validating: true,
+          completionForm: formData
+        }
+      };
+    });
+
+    // Start simulated validation analysis (2s)
+    setTimeout(() => {
+      setMaintenanceWorkflows(prev => {
+        const wf = prev[mid];
+        if (!wf) return prev;
+        return {
+          ...prev,
+          [mid]: {
+            ...wf,
+            validating: false,
+            postValidationCompleted: true,
+            recoveryValidated: false
+          }
+        };
+      });
+      
+      setAiLearningLog(prev => [
+        {
+          timestamp: new Date().toISOString(),
+          type: "Recovery Validation",
+          event: `Post-maintenance telemetry validation report generated for ${machineNamesMap[mid]}. Calibration metrics verified.`,
+          status: "info"
+        },
+        ...prev
+      ]);
+    }, 2000);
+  };
+
+  const approveFactoryRecovery = async (mid) => {
+    const workflow = maintenanceWorkflows[mid];
+    if (!workflow) return;
+
+    const item = MASTER_FINANCIAL_BASES[mid] || MASTER_FINANCIAL_BASES["M3"];
+    const vf = validatedFinancials[mid] || MASTER_FINANCIAL_BASES[mid];
+    const duration = workflow.completionForm?.duration || 87;
+    const component = workflow.completionForm?.component || item.component;
+
+    // Start Recovery Animation sequence (Red -> Amber -> Green)
+    // First: turn machine to warning status temporarily (Orange node)
+    setTelemetry(prev => {
+      const next = { ...prev };
+      if (next[mid]) {
+        next[mid] = {
+          ...next[mid],
+          status: "warning",
+          metrics: {
+            ...next[mid].metrics,
+            temperature: 88,
+            vibration: 0.38,
+            load: 80
+          },
+          ai_prediction: {
+            ...next[mid].ai_prediction,
+            failure_probability: 40.0,
+            rul_hours: 320,
+            recommendation: "System recalibrating...",
+            action: "inspect"
+          }
+        };
+      }
+      return next;
+    });
+
+    // After 1 second: resolve machine to fully healthy (Green node)
+    setTimeout(async () => {
+      setTelemetry(prev => {
+        const next = { ...prev };
+        if (next[mid]) {
+          next[mid] = {
+            ...next[mid],
+            status: "healthy",
+            anomaly_active: false,
+            metrics: {
+              ...next[mid].metrics,
+              temperature: mid === "M3" ? 70 : (mid === "M2" ? 72 : next[mid].metrics.temperature),
+              vibration: mid === "M3" ? 0.05 : (mid === "M2" ? 0.12 : next[mid].metrics.vibration),
+              load: mid === "M3" ? 60 : (mid === "M2" ? 64 : next[mid].metrics.load)
+            },
+            ai_prediction: {
+              ...next[mid].ai_prediction,
+              failure_probability: 1.4,
+              rul_hours: 1000,
+              recommendation: "Continue Normal Operations",
+              action: "monitor"
+            }
+          };
+        }
+        return next;
+      });
+
+      // Reset backend anomaly simulator to ensure full synchronization
+      try {
+        await fetch("/api/reset", { method: "POST" });
+      } catch (e) {
+        console.warn("Backend reset failed:", e);
+      }
+
+      // Finalize close-out validation states
+      setMaintenanceWorkflows(prev => ({
+        ...prev,
+        [mid]: {
+          ...prev[mid],
+          recoveryValidated: true,
+          recovered: true,
+          incidentClosed: true
+        }
+      }));
+
+      // Add to approved set
+      setApprovedMachines(prev => new Set(prev).add(mid));
+
+      // Business KPI Sync
+      setDecisionsAccepted(prev => prev + 1);
+      setFailuresPrevented(prev => prev + 1);
+
+      // Financials update
+      setFinancials(prev => ({
+        ...prev,
+        cost_saved: prev.cost_saved + vf.netSavings,
+        downtime_prevented: parseFloat((prev.downtime_prevented + vf.downtimeHrs).toFixed(1))
+      }));
+
+      // Decision Quality & Adoption Analytics
+      setDecisionQualityScore(prev => Math.min(100, prev + 2));
+      setAiAdoptionTrustScore(prev => Math.min(100, parseFloat((prev + 1.3).toFixed(1))));
+
+      setAdoptionAnalytics(prev => ({
+        ...prev,
+        totalGenerated: prev.totalGenerated + 1,
+        accepted: prev.accepted + (workflow.decision === 'modify' ? 0 : 1),
+        modified: prev.modified + (workflow.decision === 'modify' ? 1 : 0),
+      }));
+
+      // Update schedule to completed
+      setSchedule(prev => prev.map(s => s.id === workflow.slotId ? { ...s, status: "completed" } : s));
+
+      // Append incident closure log
+      const newInc = {
+        id: "inc_comp_" + Date.now(),
+        machine_id: mid,
+        timestamp: new Date().toISOString(),
+        type: "Incident Closed",
+        action_taken: `Work Order closure verified for ${machineNamesMap[mid]}. Replaced: ${component}. Duration: ${duration} mins.`,
+        resolved: true
+      };
+      setIncidents(prev => [newInc, ...prev]);
+
+      // Add to Decision History
+      setDecisionHistory(prev => [
+        {
+          timestamp: new Date().toISOString(),
+          machine: machineNamesMap[mid],
+          recommendation: item.rootCause,
+          decision: workflow.decision.charAt(0).toUpperCase() + workflow.decision.slice(1),
+          reason: `Close-Out Completed. Replaced ${component}.`,
+          impact: "High",
+          financialOutcome: `+₹${vf.netSavings.toLocaleString()}`,
+          engineer: workflow.completionForm?.techName || "Plant Engineer",
+          isCorrect: vf.isCorrect,
+          outcome: "Closed Successfully"
+        },
+        ...prev
+      ]);
+
+      // AI Learning Database log
+      setAiLearningLog(prev => [
+        {
+          timestamp: new Date().toISOString(),
+          type: "AI Learning Updated",
+          event: `Continuous calibration complete for ${machineNamesMap[mid]}. Verified component: ${component}. Trust score recalibrated.`,
+          status: "success"
+        },
+        ...prev
+      ]);
+
+      // Toast / Copilot
+      setChatHistory(prev => [
+        ...prev,
+        {
+          sender: "copilot",
+          text: `### 🚀 Factory Recovery Approved & Incident Closed\n\n**Asset:** ${machineNamesMap[mid]}\n**Status:** Closed Successfully\n**Business Value:** ₹${vf.netSavings.toLocaleString()} saved\n**Downtime Prevented:** ${vf.downtimeHrs.toFixed(1)} hours.`
+        }
+      ]);
+
+      // Walkthrough Step increment
+      if (walkthroughStep === 5 && mid === "M3") {
+        setWalkthroughStep(6);
+      }
+    }, 1000);
   };
 
   const handleInspectionChange = (mid, field, value) => {
@@ -1061,104 +1394,7 @@ export default function App() {
 
   const submitRecommendationDecision = (mid) => {
     const form = recommendationForms[mid] || { decision: 'accept', priority: 'High', scheduledTime: 'Next Shift', strategy: 'Component Replacement' };
-    const vf = validatedFinancials[mid] || MASTER_FINANCIAL_BASES[mid];
-    const decision = form.decision;
-
-    let trustScoreDelta = 0;
-    let impactStr = "";
-    let financialOutcome = "";
-
-    if (decision === 'accept') {
-      trustScoreDelta = 1.2;
-      impactStr = "High";
-      financialOutcome = `+₹${vf.netSavings.toLocaleString()}`;
-      setApprovedMachines(prev => new Set(prev).add(mid));
-      
-      // Add to schedule if not present
-      if (!schedule.some(s => s.machine === machineNamesMap[mid])) {
-        setSchedule(prev => [...prev, {
-          id: `WO-${Math.floor(Math.random() * 10000)}`,
-          machine: machineNamesMap[mid],
-          task: form.strategy,
-          priority: form.priority,
-          time: form.scheduledTime,
-          team: form.priority === "Urgent" ? "Emergency Team" : "Mechanical",
-          status: "scheduled"
-        }]);
-      }
-    } else if (decision === 'modify') {
-      trustScoreDelta = 0.5;
-      impactStr = "Medium";
-      financialOutcome = `+₹${(vf.netSavings * 0.9).toLocaleString()}`; // Slightly adjusted savings
-      setApprovedMachines(prev => new Set(prev).add(mid)); // Modified is still approved for maintenance
-      
-      if (!schedule.some(s => s.machine === machineNamesMap[mid])) {
-        setSchedule(prev => [...prev, {
-          id: `WO-${Math.floor(Math.random() * 10000)}`,
-          machine: machineNamesMap[mid],
-          task: form.strategy,
-          priority: form.priority,
-          time: form.scheduledTime,
-          team: "Mechanical",
-          status: "scheduled"
-        }]);
-      }
-    } else if (decision === 'reject') {
-      trustScoreDelta = -1.5;
-      impactStr = "Negative";
-      financialOutcome = `-₹${vf.potentialLoss.toLocaleString()}`;
-      // Do not add to schedule, leaves it pending or resets
-      setValidationStates(prev => ({ ...prev, [mid]: "rejected" }));
-    }
-
-    // Update Analytics
-    setAdoptionAnalytics(prev => ({
-      ...prev,
-      totalGenerated: prev.totalGenerated + 1,
-      accepted: prev.accepted + (decision === 'accept' ? 1 : 0),
-      modified: prev.modified + (decision === 'modify' ? 1 : 0),
-      rejected: prev.rejected + (decision === 'reject' ? 1 : 0),
-    }));
-
-    setAiAdoptionTrustScore(prev => Math.min(100, Math.max(0, prev + trustScoreDelta)));
-
-    // Update Decision History
-    const engName = inspectionForms[mid]?.techName || "Engineer";
-    setDecisionHistory(prev => [
-      {
-        timestamp: new Date().toISOString(),
-        machine: machineNamesMap[mid],
-        recommendation: MASTER_FINANCIAL_BASES[mid].rootCause,
-        decision: decision.charAt(0).toUpperCase() + decision.slice(1),
-        reason: decision === 'reject' ? form.rejectReason : form.strategy,
-        impact: impactStr,
-        financialOutcome: financialOutcome,
-        engineer: engName,
-        isCorrect: vf.isCorrect,
-        outcome: decision === 'reject' ? "Deferred" : "Scheduled"
-      },
-      ...prev
-    ]);
-
-    // Update Learning Log
-    setAiLearningLog(prev => [
-      {
-        timestamp: new Date().toISOString(),
-        type: "Recommendation Adoption",
-        event: `Model updated based on ${decision} decision by ${engName} for ${machineNamesMap[mid]}.`,
-        status: decision === 'reject' ? "optimized" : "success"
-      },
-      ...prev
-    ]);
-
-    // Toast
-    setChatHistory(prev => [
-      ...prev,
-      {
-        sender: "copilot",
-        text: `### 📊 AI Recommendation Model Updated\n\n**Decision Recorded:** ${decision.toUpperCase()}\n**Business Outcome:** ${decision === 'reject' ? 'Maintenance Deferred' : 'Maintenance Scheduled'}`
-      }
-    ]);
+    startMaintenanceWorkflow(mid, form.decision);
   };
 
   const sendCopilotQuery = async (queryText) => {
@@ -1613,12 +1849,12 @@ export default function App() {
         <header className="h-16 border-b border-slate-800/80 bg-[#090d16]/90 px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse status-transition ${factoryHealthPct >= 85 ? 'bg-emerald-500' : factoryHealthPct >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse status-transition ${animatedHealth >= 85 ? 'bg-emerald-500' : animatedHealth >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} />
               <div>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-slate-500 text-[10px] uppercase tracking-wider font-mono">Factory Health:</span>
-                  <span className={`font-bold text-sm font-mono status-transition ${factoryHealthPct >= 85 ? 'text-emerald-400' : factoryHealthPct >= 60 ? 'text-amber-400' : 'text-rose-400'}`}>
-                    {factoryHealthPct.toFixed(1)}%
+                  <span className={`font-bold text-sm font-mono status-transition ${animatedHealth >= 85 ? 'text-emerald-400' : animatedHealth >= 60 ? 'text-amber-400' : 'text-rose-400'}`}>
+                    {animatedHealth.toFixed(1)}%
                   </span>
                 </div>
                 <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest leading-none">Overall Operational Availability</p>
@@ -2024,7 +2260,25 @@ export default function App() {
                       {walkthroughStep === 2 && <button onClick={() => { setSelectedMachine("M3"); setWalkthroughStep(3); }} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">View M3</button>}
                       {walkthroughStep === 3 && <button onClick={() => setWalkthroughStep(4)} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Compare</button>}
                       {walkthroughStep === 4 && <button onClick={() => approveRecommendation("M3")} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Approve</button>}
-                      {walkthroughStep === 5 && <button onClick={() => { completeTaskLocal(schedule.length > 0 ? schedule[0].id : "slot_m3"); setWalkthroughStep(6); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Complete</button>}
+                      {walkthroughStep === 5 && (
+                        <>
+                          {(!maintenanceWorkflows["M3"] || !maintenanceWorkflows["M3"].maintenanceCompleted) ? (
+                            <button 
+                              onClick={() => submitMaintenanceCompletion("M3", { techName: "Walkthrough Specialist A", empId: "EMP-2026-DEMO", duration: 87, component: "Bearing Assembly", remarks: "Replaced bearing and aligned shaft." })} 
+                              className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase"
+                            >
+                              Complete Maintenance
+                            </button>
+                          ) : !maintenanceWorkflows["M3"].recovered ? (
+                            <button 
+                              onClick={() => approveFactoryRecovery("M3")} 
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase animate-pulse"
+                            >
+                              Approve Recovery
+                            </button>
+                          ) : null}
+                        </>
+                      )}
                       {walkthroughStep === 6 && <button onClick={() => resetAllLocal()} className="bg-rose-700 hover:bg-rose-600 text-white px-3 py-1 rounded font-bold transition active:scale-95 text-[10px] uppercase">Reset</button>}
                       <button onClick={() => resetAllLocal()} className="text-slate-400 hover:text-rose-400 text-[10px] font-bold uppercase transition">Quit</button>
                     </div>
@@ -2190,288 +2444,673 @@ export default function App() {
                             </div>
                           </div>
 
-                          {selStatus !== 'healthy' ? (
+                          {(selStatus !== 'healthy' || maintenanceWorkflows[selectedMachine]) ? (
                             <div className="space-y-4">
                               
-                              {/* Maintenance Validation Stepper */}
-                              <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3">
-                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Maintenance Validation</span>
-                                
-                                {(() => {
-                                  const valState = validationStates[selectedMachine] || "pending";
-                                  const form = inspectionForms[selectedMachine] || { evidence: [], correct: 'yes', severity: 'Medium' };
-                                  if (valState === "pending" || valState === "verifying") {
-                                    return (
-                                      <div className="space-y-3">
-                                        <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
-                                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                                          <span>Inspection Status: Pending Technician Validation</span>
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 leading-relaxed">AI has flagged potential degradation. Please perform physical inspection to validate.</p>
-                                        
-                                        <div className="space-y-2 text-xs">
-                                          <input type="text" placeholder="Technician Name" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.techName || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'techName', e.target.value)} />
-                                          <input type="text" placeholder="Employee ID" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.empId || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'empId', e.target.value)} />
-                                          
-                                          <div>
-                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Inspection Evidence</span>
-                                            <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-300">
-                                              {['Visual Inspection', 'Thermal Camera', 'Vibration Analyzer', 'Acoustic Analysis', 'Manual Testing', 'Other'].map(ev => (
-                                                <label key={ev} className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-300 transition">
-                                                  <input type="checkbox" checked={form.evidence?.includes(ev)} onChange={() => handleEvidenceToggle(selectedMachine, ev)} className="accent-emerald-500" />
-                                                  {ev}
-                                                </label>
-                                              ))}
-                                            </div>
-                                          </div>
-                                          
-                                          <textarea placeholder="Evidence Summary (e.g., Excessive vibration observed...)" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-12 resize-none text-[10px]" value={form.summary || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'summary', e.target.value)} />
-                                          
-                                          <div className="pt-1">
-                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Was AI Prediction Correct?</span>
-                                            <div className="flex gap-4">
-                                              <label className="flex items-center gap-1 cursor-pointer">
-                                                <input type="radio" name="correct" checked={form.correct === 'yes'} onChange={() => handleInspectionChange(selectedMachine, 'correct', 'yes')} className="accent-emerald-500" />
-                                                <span className="text-white">Yes</span>
-                                              </label>
-                                              <label className="flex items-center gap-1 cursor-pointer">
-                                                <input type="radio" name="correct" checked={form.correct === 'no'} onChange={() => handleInspectionChange(selectedMachine, 'correct', 'no')} className="accent-rose-500" />
-                                                <span className="text-white">No</span>
-                                              </label>
-                                            </div>
-                                          </div>
-                                          
-                                          {form.correct === 'yes' ? (
-                                            <div className="flex flex-col gap-1 bg-slate-950/60 p-2.5 rounded-lg border border-emerald-900/40 text-[11px] leading-tight">
-                                              <span className="text-emerald-400 font-bold text-center">Confirmed: {MASTER_FINANCIAL_BASES[selectedMachine].component}</span>
-                                            </div>
+                              {/* If workflow is active for this machine */}
+                              {(() => {
+                                const workflow = maintenanceWorkflows[selectedMachine];
+                                if (workflow) {
+                                  // Render Work Order Lifecycle
+                                  return (
+                                    <>
+                                      {/* Work Order Lifecycle Tracking */}
+                                      <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-3.5">
+                                        <div className="flex justify-between items-center pb-2 border-b border-slate-800/60">
+                                          <span className="text-[11px] font-bold text-slate-300 font-mono">Work Order : {workflow.slotId.split('_').slice(0, 2).join('-').toUpperCase()}</span>
+                                          {workflow.incidentClosed ? (
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-green-950/40 text-green-400 border border-green-900/30">Closed</span>
+                                          ) : workflow.maintenanceCompleted ? (
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-950/40 text-emerald-400 border border-emerald-900/30">Completed</span>
+                                          ) : workflow.inProgress ? (
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-950/40 text-amber-400 border border-amber-900/30 animate-pulse">In Progress</span>
+                                          ) : workflow.dispatched ? (
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-950/40 text-blue-400 border border-blue-900/30">Dispatched</span>
                                           ) : (
-                                            <div className="space-y-2 pt-1 border-t border-slate-800">
-                                              <span className="text-[10px] text-amber-400 uppercase tracking-wider block mb-1">Manual Override Required</span>
-                                              <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.actualSubsystem || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'actualSubsystem', e.target.value)}>
-                                                <option value="" disabled>Select Actual Subsystem</option>
-                                                <option value="Spindle Drive Assembly">Spindle Drive Assembly</option>
-                                                <option value="Joint 3 Gearbox Assembly">Joint 3 Gearbox Assembly</option>
-                                                <option value="Clamping Hydraulic Unit">Clamping Hydraulic Unit</option>
-                                                <option value="Rotary Screw Pneumatic Chamber">Rotary Screw Pneumatic Chamber</option>
-                                                <option value="Drive Roller Pulley Assembly">Drive Roller Pulley Assembly</option>
-                                                <option value="Hydraulic Pressure Valve Blocks">Hydraulic Pressure Valve Blocks</option>
-                                              </select>
-                                              <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.actualComponent || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'actualComponent', e.target.value)}>
-                                                <option value="" disabled>Select Actual Component</option>
-                                                {Object.keys(MAINTENANCE_KNOWLEDGE_BASE).filter(k => k !== "Default").map(comp => (
-                                                  <option key={comp} value={comp}>{comp}</option>
-                                                ))}
-                                              </select>
-                                              <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.severity || 'Medium'} onChange={(e) => handleInspectionChange(selectedMachine, 'severity', e.target.value)}>
-                                                <option value="Low">Severity: Low</option>
-                                                <option value="Medium">Severity: Medium</option>
-                                                <option value="High">Severity: High</option>
-                                              </select>
-                                            </div>
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-950/40 text-blue-400 border border-blue-900/30">Scheduled</span>
                                           )}
-                                          
-                                          <button onClick={() => confirmInspection(selectedMachine)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1 mt-2">
-                                            Confirm Inspection
-                                          </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 relative py-1">
+                                          <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-slate-800 -translate-y-1/2 -z-10"></div>
+                                          <div 
+                                            className="absolute top-1/2 left-4 h-0.5 bg-emerald-500 -translate-y-1/2 -z-10 transition-all duration-500"
+                                            style={{
+                                              width: workflow.incidentClosed ? '100%' :
+                                                     workflow.maintenanceCompleted ? '75%' :
+                                                     workflow.inProgress ? '50%' :
+                                                     workflow.dispatched ? '25%' : '0%'
+                                            }}
+                                          ></div>
+
+                                          {[
+                                            { label: "Scheduled", done: workflow.scheduled },
+                                            { label: "Dispatched", done: workflow.dispatched },
+                                            { label: "In Progress", done: workflow.inProgress },
+                                            { label: "Completed", done: workflow.maintenanceCompleted },
+                                            { label: "Closed", done: workflow.incidentClosed }
+                                          ].map((step, idx) => (
+                                            <div key={idx} className="flex flex-col items-center gap-1 flex-1">
+                                              <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold border transition ${
+                                                step.done ? 'bg-emerald-600 border-emerald-500 text-white shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-950 border-slate-800 text-slate-600'
+                                              }`}>
+                                                {step.done ? "✓" : idx + 1}
+                                              </div>
+                                              <span className={step.done ? "text-emerald-400 font-bold" : "text-slate-500"}>{step.label}</span>
+                                            </div>
+                                          ))}
                                         </div>
                                       </div>
-                                    );
-                                  } else { // confirmed
-                                    const vf = validatedFinancials[selectedMachine] || {};
-                                    return (
-                                      <div className="space-y-3 text-xs">
-                                        <div className="flex items-center gap-2 text-emerald-400 font-semibold bg-emerald-950/20 px-2 py-1.5 rounded border border-emerald-900/30">
-                                          <CheckCircle className="w-4 h-4 shrink-0" />
-                                          <span>Inspection Status: Confirmed</span>
-                                        </div>
-                                        
-                                        <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-850 space-y-2">
-                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider font-mono border-b border-slate-800 pb-1 mb-2 flex justify-between">
-                                            <span>Before vs After Inspection</span>
-                                            <span className="text-emerald-400">Validated</span>
-                                          </div>
-                                          
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-slate-400">Predicted Component</span>
-                                            <span className="text-slate-300 font-mono text-[10px] text-right truncate w-32">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span>
-                                          </div>
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-slate-400">Actual Component</span>
-                                            <span className="text-emerald-400 font-bold font-mono text-[10px] text-right truncate w-32">{vf.actualComponent}</span>
-                                          </div>
-                                          <div className="flex justify-between items-center pt-1 border-t border-slate-800/50">
-                                            <span className="text-slate-400">AI Accuracy Status</span>
-                                            <span className={`font-bold font-mono text-[10px] ${vf.isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                              {vf.isCorrect ? 'PREDICTION CORRECT' : 'PREDICTION INCORRECT'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="text-[10px] text-emerald-400 text-center font-mono animate-pulse mt-2 bg-emerald-950/20 py-1 rounded">
-                                          Business Impact & Learning Database Updated ✓
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-                                })()}
-                              </div>
 
-                              {/* Business Justification Ledger */}
-                              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-2">
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Business Justification Ledger</span>
-                                  {validationStates[selectedMachine] === "confirmed" ? (
-                                    <span className="bg-emerald-950/60 text-emerald-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-emerald-900/40">VALIDATED BUSINESS IMPACT</span>
-                                  ) : (
-                                    <span className="bg-amber-950/40 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-900/30">PRELIMINARY AI ESTIMATE</span>
-                                  )}
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="text-slate-400">Maintenance Cost:</span>
-                                  <span className="font-mono text-white">₹{(validatedFinancials[selectedMachine]?.maintCost || selAdv.maintCost).toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="text-slate-400">Failure Cost if Ignored:</span>
-                                  <span className="font-mono text-white">₹{(validatedFinancials[selectedMachine]?.potentialLoss || selAdv.potentialLoss).toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="text-slate-400">Estimated Production Loss:</span>
-                                  <span className="font-mono text-rose-400">₹{(validatedFinancials[selectedMachine]?.prodSaved || selAdv.prodSaved).toLocaleString()}</span>
-                                </div>
-                                <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
-                                  <span className="text-xs font-semibold text-emerald-300">Net Business Gain</span>
-                                  <span className="font-mono text-emerald-400 font-bold text-base">↑ ₹{(validatedFinancials[selectedMachine]?.netSavings || selAdv.netSavings).toLocaleString()}</span>
-                                </div>
-                              </div>
+                                      {/* Stage Specific Panels */}
+                                      {workflow.incidentClosed ? (
+                                        <>
+                                          {/* Executive Maintenance Summary */}
+                                          {(() => {
+                                            const item = MASTER_FINANCIAL_BASES[selectedMachine] || MASTER_FINANCIAL_BASES["M3"];
+                                            const vf = validatedFinancials[selectedMachine] || MASTER_FINANCIAL_BASES[selectedMachine];
+                                            const comp = workflow.completionForm?.component || item.component;
+                                            const duration = workflow.completionForm?.duration || 87;
+                                            return (
+                                              <div className="bg-emerald-950/10 border border-emerald-500/30 rounded-xl p-4 space-y-3 text-xs leading-relaxed">
+                                                <div className="flex items-center gap-2 text-emerald-400 font-bold border-b border-emerald-900/30 pb-2">
+                                                  <CheckCircle className="w-4 h-4 shrink-0" />
+                                                  <h4 className="font-display uppercase text-sm tracking-wide">Executive Maintenance Summary</h4>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 gap-y-1.5 gap-x-4 font-mono text-[10px] text-slate-300">
+                                                  <div>Machine:</div>
+                                                  <div className="text-white text-right font-bold">{machineNamesMap[selectedMachine]}</div>
+                                                  
+                                                  <div>Confirmed Component:</div>
+                                                  <div className="text-white text-right truncate font-bold">{comp}</div>
+                                                  
+                                                  <div>Maintenance Duration:</div>
+                                                  <div className="text-white text-right font-bold">{duration} Minutes</div>
+                                                  
+                                                  <div>Downtime Prevented:</div>
+                                                  <div className="text-emerald-400 text-right font-bold">{vf.downtimeHrs.toFixed(1)} Hours</div>
+                                                  
+                                                  <div>Production Loss Avoided:</div>
+                                                  <div className="text-emerald-400 text-right font-bold">₹{vf.prodSaved.toLocaleString()}</div>
+                                                  
+                                                  <div>Net Business Savings:</div>
+                                                  <div className="text-emerald-400 text-right font-bold">₹{vf.netSavings.toLocaleString()}</div>
+                                                  
+                                                  <div>Factory Health:</div>
+                                                  <div className="text-white text-right">{animatedHealth.toFixed(1)}%</div>
+                                                  
+                                                  <div>Incident:</div>
+                                                  <div className="text-emerald-400 text-right font-bold uppercase">Closed Successfully</div>
+                                                  
+                                                  <div>Recommendation Outcome:</div>
+                                                  <div className="text-emerald-400 text-right font-bold uppercase">Successful</div>
+                                                  
+                                                  <div>AI Learning Database:</div>
+                                                  <div className="text-emerald-400 text-right uppercase">Updated</div>
+                                                  
+                                                  <div>Decision Trust Score:</div>
+                                                  <div className="text-emerald-400 text-right font-bold">{aiAdoptionTrustScore.toFixed(1)}%</div>
+                                                </div>
+                                              </div>
+                                            );
+                                          })()}
 
-                              {/* Business Impact Summary */}
-                              <div className="bg-slate-950/30 rounded-xl p-3 border border-slate-800/60 grid grid-cols-3 gap-2 text-center">
-                                <div>
-                                  <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Downtime Prevented</span>
-                                  <span className="text-xs font-bold text-white">{(validatedFinancials[selectedMachine]?.downtimeHrs || selAdv.downtimeHrs).toFixed(1)} hrs</span>
-                                </div>
-                                <div>
-                                  <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Production Saved</span>
-                                  <span className="text-xs font-bold text-emerald-400">₹{(validatedFinancials[selectedMachine]?.prodSaved || selAdv.prodSaved).toLocaleString()}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Estimated ROI</span>
-                                  <span className="text-xs font-bold text-white">{((validatedFinancials[selectedMachine]?.netSavings || selAdv.netSavings) / (validatedFinancials[selectedMachine]?.maintCost || selAdv.maintCost)).toFixed(1)}×</span>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col gap-2">
-                                {validationStates[selectedMachine] !== "confirmed" && validationStates[selectedMachine] !== "rejected" ? (
-                                  <>
-                                    <button
-                                      disabled
-                                      className="flex-1 py-2 rounded-lg font-bold text-xs bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed flex items-center justify-center gap-1.5"
-                                    >
-                                      <CheckCircle className="w-3.5 h-3.5" /> Approve Executive Recommendation
-                                    </button>
-                                    <p className="text-[9px] text-amber-500 text-center italic mt-0.5 leading-normal">
-                                      *Complete Maintenance Validation to approve recommended action.
-                                    </p>
-                                  </>
-                                ) : approvedMachines.has(selectedMachine) || validationStates[selectedMachine] === "rejected" ? (
-                                  <div className={`flex-1 border py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "rejected" ? "bg-rose-950/60 border-rose-700/50 text-rose-400" : "bg-emerald-950/60 border-emerald-700/50 text-emerald-400"}`}>
-                                    {validationStates[selectedMachine] === "rejected" ? "Maintenance Deferred ❌" : "Dispatched ✓"}
-                                  </div>
-                                ) : (
-                                  <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3 mt-1">
-                                    <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Recommendation Review</span>
-                                    {(() => {
-                                      const recForm = recommendationForms[selectedMachine] || { decision: 'accept', priority: 'High', scheduledTime: 'Next Shift', strategy: 'Component Replacement' };
-                                      return (
-                                        <div className="space-y-3 text-[11px]">
-                                          <div className="grid grid-cols-3 gap-2">
-                                            <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'accept')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'accept' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Accept</button>
-                                            <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'modify')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'modify' ? 'bg-amber-600/20 border-amber-500 text-amber-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Modify</button>
-                                            <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'reject')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'reject' ? 'bg-rose-600/20 border-rose-500 text-rose-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Reject</button>
-                                          </div>
-                                          
-                                          {recForm.decision === 'modify' && (
-                                            <div className="space-y-2 pt-2 border-t border-slate-800/50">
-                                              <select value={recForm.priority} onChange={(e) => handleRecommendationChange(selectedMachine, 'priority', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none">
-                                                <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
-                                              </select>
-                                              <input type="text" placeholder="Scheduled Time" value={recForm.scheduledTime} onChange={(e) => handleRecommendationChange(selectedMachine, 'scheduledTime', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" />
-                                              <input type="text" placeholder="Repair Strategy" value={recForm.strategy} onChange={(e) => handleRecommendationChange(selectedMachine, 'strategy', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" />
-                                              <textarea placeholder="Maintenance Notes" value={recForm.notes} onChange={(e) => handleRecommendationChange(selectedMachine, 'notes', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-10 resize-none"></textarea>
+                                          {/* Work Order Closure Report */}
+                                          <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-3.5 font-mono text-[11px] text-slate-300">
+                                            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                                              <span className="font-bold text-white uppercase text-xs">Work Order Closure Report</span>
+                                              <span className="bg-emerald-950/40 text-emerald-400 px-1.5 py-0.5 rounded text-[8px] font-bold border border-emerald-900/30">STATUS: CLOSED</span>
                                             </div>
-                                          )}
-                                          
-                                          {recForm.decision === 'reject' && (
-                                            <div className="space-y-2 pt-2 border-t border-slate-800/50">
-                                              <select value={recForm.rejectReason} onChange={(e) => handleRecommendationChange(selectedMachine, 'rejectReason', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none">
-                                                <option value="">Select Reason for Rejection</option>
-                                                <option>False Positive</option>
-                                                <option>Production Constraints</option>
-                                                <option>Machine Operating Normally</option>
-                                                <option>Spare Parts Unavailable</option>
-                                                <option>Safety Concern</option>
-                                                <option>Engineer Override</option>
-                                                <option>Business Priority Changed</option>
-                                                <option>Other</option>
-                                              </select>
-                                              <textarea placeholder="Remarks" value={recForm.rejectRemarks} onChange={(e) => handleRecommendationChange(selectedMachine, 'rejectRemarks', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-10 resize-none"></textarea>
+                                            
+                                            <div className="space-y-1.5">
+                                              <div className="flex justify-between"><span className="text-slate-500">Work Order Number:</span><span className="text-white font-bold">{workflow.slotId.split('_').slice(0, 2).join('-').toUpperCase()}</span></div>
+                                              <div className="flex justify-between"><span className="text-slate-500">Assigned Engineer:</span><span className="text-white">{workflow.completionForm?.techName || "Plant Maintenance Team"}</span></div>
+                                              <div className="flex justify-between"><span className="text-slate-500">Completion Time:</span><span className="text-white">{new Date().toLocaleTimeString()}</span></div>
+                                              <div className="flex justify-between"><span className="text-slate-500">Maintenance Duration:</span><span className="text-white font-bold">{workflow.completionForm?.duration || 87} Minutes</span></div>
+                                              <div className="flex justify-between"><span className="text-slate-500">Component Replaced:</span><span className="text-white">{workflow.completionForm?.component || MASTER_FINANCIAL_BASES[selectedMachine].component}</span></div>
+                                              <div className="flex justify-between"><span className="text-slate-500">Root Cause:</span><span className="text-white font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].rootCause}</span></div>
+                                              <div className="flex justify-between"><span className="text-slate-500">Remarks:</span><span className="text-white italic text-right truncate w-40">{workflow.completionForm?.remarks || "Completed successfully"}</span></div>
+                                              <div className="flex justify-between border-t border-slate-800/60 pt-1.5"><span className="text-slate-500">Digital Approval Timestamp:</span><span className="text-emerald-400 font-bold">{new Date().toISOString().slice(0, 10)} {new Date().toLocaleTimeString()}</span></div>
                                             </div>
-                                          )}
-                                          
-                                          <div className="pt-2">
-                                            <div className="flex items-center gap-2 mb-2">
-                                              <span className="text-[9px] text-slate-500 uppercase font-mono">Expected Outcome:</span>
-                                              <span className={`text-[10px] font-bold ${recForm.decision === 'accept' ? 'text-emerald-400' : recForm.decision === 'modify' ? 'text-amber-400' : 'text-rose-400'}`}>
-                                                {recForm.decision === 'accept' ? 'Savings Increase, Risk Reduced' : recForm.decision === 'modify' ? 'Business Impact Recalculated' : 'Maintenance Deferred, Financial Exposure Increased'}
+                                            
+                                            <div className="text-[8px] text-slate-600 text-center border-t border-slate-850 pt-2 flex items-center justify-center gap-1.5">
+                                              <span>🔒 Cryptographic Seal Verified</span>
+                                              <span>•</span>
+                                              <span>Digital Approval Stamp Active</span>
+                                            </div>
+                                          </div>
+                                        </>
+                                      ) : workflow.maintenanceCompleted ? (
+                                        <>
+                                          {workflow.validating ? (
+                                            /* Telemetry diagnostics loader */
+                                            <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 flex flex-col items-center justify-center py-8 gap-3">
+                                              <div className="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+                                              <span className="text-xs font-mono text-slate-400 text-center">
+                                                ⚡ Running Post-Maintenance Recovery Validation & Telemetry Analysis...
                                               </span>
                                             </div>
-                                            <button
-                                              onClick={() => submitRecommendationDecision(selectedMachine)}
-                                              disabled={recForm.decision === 'reject' && !recForm.rejectReason}
-                                              className="w-full py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                              Confirm Decision
-                                            </button>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                )}
-                                
-                                <button
-                                  onClick={() => setActiveTab("opportunities")}
-                                  className="flex-1 bg-slate-850 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white py-2 rounded-lg font-semibold text-xs transition border border-slate-700"
-                                >
-                                  Compare Alternatives
-                                </button>
-                              </div>
+                                          ) : (
+                                            <>
+                                              {/* Post-Maintenance Telemetry Validation Report */}
+                                              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-3">
+                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono font-bold">Recovery Validation Report</span>
+                                                <table className="w-full text-[11px] font-mono text-left border-collapse">
+                                                  <thead>
+                                                    <tr className="border-b border-slate-800 text-[9px] text-slate-500">
+                                                      <th className="py-1">Metric</th>
+                                                      <th className="py-1">Before</th>
+                                                      <th className="py-1">After</th>
+                                                      <th className="py-1 text-right">Status</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody className="divide-y divide-slate-800/40 text-slate-300">
+                                                    <tr>
+                                                      <td className="py-1.5">Temperature</td>
+                                                      <td className="py-1.5">{MASTER_FINANCIAL_BASES[selectedMachine].rootCause.toLowerCase().includes("temp") || selectedMachine === "M3" ? "104°C" : "88°C"}</td>
+                                                      <td className="py-1.5 text-emerald-400">74°C</td>
+                                                      <td className="py-1.5 text-right text-emerald-400">✅ Normal</td>
+                                                    </tr>
+                                                    <tr>
+                                                      <td className="py-1.5">Vibration</td>
+                                                      <td className="py-1.5">{selectedMachine === "M3" ? "0.89 mm/s" : "0.38 mm/s"}</td>
+                                                      <td className="py-1.5 text-emerald-400">0.14 mm/s</td>
+                                                      <td className="py-1.5 text-right text-emerald-400">✅ Normal</td>
+                                                    </tr>
+                                                    <tr>
+                                                      <td className="py-1.5">Load</td>
+                                                      <td className="py-1.5">{selectedMachine === "M3" ? "9.7 kW" : "8.1 kW"}</td>
+                                                      <td className="py-1.5 text-emerald-400">7.1 kW</td>
+                                                      <td className="py-1.5 text-right text-emerald-400">✅ Stable</td>
+                                                    </tr>
+                                                    <tr>
+                                                      <td className="py-1.5">Failure Prob.</td>
+                                                      <td className="py-1.5">{selectedMachine === "M3" ? "97.5%" : "13.7%"}</td>
+                                                      <td className="py-1.5 text-emerald-400">3.0%</td>
+                                                      <td className="py-1.5 text-right text-emerald-400">✅ Reduced</td>
+                                                    </tr>
+                                                    <tr>
+                                                      <td className="py-1.5">Machine Health</td>
+                                                      <td className="py-1.5">{selectedMachine === "M3" ? "2.5%" : "86.3%"}</td>
+                                                      <td className="py-1.5 text-emerald-400">98.7%</td>
+                                                      <td className="py-1.5 text-right text-emerald-400">✅ Restored</td>
+                                                    </tr>
+                                                  </tbody>
+                                                </table>
+                                                
+                                                <div className="bg-emerald-950/20 border border-emerald-900/30 rounded p-2 text-center text-emerald-400 text-[10px] font-bold font-mono">
+                                                  ✓ Machine Telemetry Verified: Restored to Optimal Health
+                                                </div>
+                                              </div>
 
-                              {/* 11E: Recommendation Workflow Indicator */}
-                              <div className="rounded-xl border border-slate-800/60 bg-slate-950/20 px-3 py-2.5">
-                                <div className="flex items-start justify-between gap-1">
-                                  {[
-                                    { label: "Approve\nRecommendation", done: approvedMachines.has(selectedMachine), active: !approvedMachines.has(selectedMachine) },
-                                    { label: "Auto Maintenance\nScheduling",  done: approvedMachines.has(selectedMachine), active: false },
-                                    { label: "Incident\nLogged",              done: approvedMachines.has(selectedMachine), active: false },
-                                    { label: "Factory\nRecovery",             done: false, active: false },
-                                  ].map((step, i, arr) => (
-                                    <React.Fragment key={i}>
-                                      <div className="flex flex-col items-center gap-1 flex-1 text-center">
-                                        <div
-                                          className={`w-2 h-2 rounded-full ${step.done ? 'bg-emerald-500' : step.active ? 'bg-amber-400 animate-pulse' : 'bg-slate-700'}`}
-                                          style={step.done ? { boxShadow: '0 0 6px rgba(16,185,129,0.55)' } : {}}
-                                        />
-                                        <span className={`text-[8px] font-mono leading-tight whitespace-pre-line ${step.done ? 'text-emerald-400' : step.active ? 'text-amber-400' : 'text-slate-600'}`}>
-                                          {step.label}
-                                        </span>
-                                      </div>
-                                      {i < arr.length - 1 && (
-                                        <div className={`h-px w-3 mt-1 flex-shrink-0 self-start mt-1 ${step.done ? 'bg-emerald-500/50' : 'bg-slate-800'}`} />
+                                              {/* AI Prediction Outcome Report */}
+                                              {(() => {
+                                                const vf = validatedFinancials[selectedMachine] || MASTER_FINANCIAL_BASES[selectedMachine];
+                                                const isCorrect = vf.isCorrect !== false; // handle fallback
+                                                return (
+                                                  <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-3">
+                                                    <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono font-bold">AI Prediction Review</span>
+                                                    <div className="grid grid-cols-2 gap-y-2 gap-x-1.5 text-[11px] font-mono">
+                                                      <div className="text-slate-400">Predicted Component:</div>
+                                                      <div className="text-white text-right font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].component}</div>
+                                                      
+                                                      <div className="text-slate-400">Actual Component:</div>
+                                                      <div className="text-white text-right font-bold">{workflow.completionForm?.component || MASTER_FINANCIAL_BASES[selectedMachine].component}</div>
+                                                      
+                                                      <div className="text-slate-400">Prediction Result:</div>
+                                                      <div className={`text-right font-bold ${isCorrect ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                        {isCorrect ? '✓ Correct' : 'Component Mismatch Detected'}
+                                                      </div>
+
+                                                      <div className="text-slate-400">Prediction Confidence:</div>
+                                                      <div className="text-white text-right font-bold">{MASTER_FINANCIAL_BASES[selectedMachine].confidence}%</div>
+                                                      
+                                                      <div className="text-slate-400">Learning Status:</div>
+                                                      <div className="text-emerald-400 text-right font-bold leading-tight">
+                                                        {isCorrect ? 'Model Updated Successfully' : 'Knowledge Base Updated / Future Recommendations Improved'}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })()}
+
+                                              {/* Maintenance Evidence Checklist */}
+                                              <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-3">
+                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono font-bold">Maintenance Evidence Checklist</span>
+                                                <div className="space-y-1.5 text-xs text-slate-300 font-mono">
+                                                  {getEvidenceChecklist(workflow.completionForm?.component || MASTER_FINANCIAL_BASES[selectedMachine].component).map((item, i) => (
+                                                    <div key={i} className="flex items-center gap-2">
+                                                      <span className="text-emerald-400 font-bold">✓</span>
+                                                      <span>{item}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                                <div className="text-[9px] text-slate-500 text-right italic font-mono pt-1 border-t border-slate-800/40">
+                                                  Report: {workflow.completionForm?.techName} ({workflow.completionForm?.empId})
+                                                </div>
+                                              </div>
+
+                                              {/* Recovery Approval CTA */}
+                                              <button
+                                                onClick={() => approveFactoryRecovery(selectedMachine)}
+                                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1.5 glow-emerald uppercase tracking-wider font-mono"
+                                              >
+                                                Approve Factory Recovery
+                                              </button>
+                                            </>
+                                          )}
+                                        </>
+                                      ) : workflow.inProgress ? (
+                                        <>
+                                          {/* In Progress Status */}
+                                          {workflow.showCompletionForm ? (
+                                            /* Maintenance Completion Form */
+                                            <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3">
+                                              <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono font-bold">Maintenance Completion Form</span>
+                                              
+                                              {(() => {
+                                                const cForm = maintCompletionForms[selectedMachine] || {
+                                                  techName: "Engineer Specialist A",
+                                                  empId: "EMP-2026-001",
+                                                  duration: 87,
+                                                  component: MASTER_FINANCIAL_BASES[selectedMachine].component,
+                                                  remarks: "Calibrated and replaced component. Functional rotation test passed."
+                                                };
+                                                return (
+                                                  <div className="space-y-3 text-xs">
+                                                    <input 
+                                                      type="text" 
+                                                      placeholder="Technician Name" 
+                                                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" 
+                                                      value={cForm.techName} 
+                                                      onChange={(e) => handleCompletionFormChange(selectedMachine, 'techName', e.target.value)} 
+                                                    />
+                                                    <input 
+                                                      type="text" 
+                                                      placeholder="Employee ID" 
+                                                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" 
+                                                      value={cForm.empId} 
+                                                      onChange={(e) => handleCompletionFormChange(selectedMachine, 'empId', e.target.value)} 
+                                                    />
+                                                    <div className="space-y-1">
+                                                      <label className="text-[10px] text-slate-400 font-mono block">Repair Duration (Minutes)</label>
+                                                      <input 
+                                                        type="number" 
+                                                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" 
+                                                        value={cForm.duration} 
+                                                        onChange={(e) => handleCompletionFormChange(selectedMachine, 'duration', parseInt(e.target.value) || 0)} 
+                                                      />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                      <label className="text-[10px] text-slate-400 font-mono block">Component Replaced</label>
+                                                      <select 
+                                                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" 
+                                                        value={cForm.component} 
+                                                        onChange={(e) => handleCompletionFormChange(selectedMachine, 'component', e.target.value)}
+                                                      >
+                                                        <option value={MASTER_FINANCIAL_BASES[selectedMachine].component}>{MASTER_FINANCIAL_BASES[selectedMachine].component} (AI Predicted)</option>
+                                                        {Object.keys(MAINTENANCE_KNOWLEDGE_BASE).filter(k => k !== "Default" && k !== MASTER_FINANCIAL_BASES[selectedMachine].component).map(comp => (
+                                                          <option key={comp} value={comp}>{comp}</option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
+                                                    <textarea 
+                                                      placeholder="Technician Remarks" 
+                                                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-12 resize-none text-[10px]" 
+                                                      value={cForm.remarks} 
+                                                      onChange={(e) => handleCompletionFormChange(selectedMachine, 'remarks', e.target.value)} 
+                                                    />
+                                                    <button 
+                                                      onClick={() => submitMaintenanceCompletion(selectedMachine, cForm)} 
+                                                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1 mt-2 font-mono uppercase"
+                                                    >
+                                                      Confirm Maintenance Completion
+                                                    </button>
+                                                  </div>
+                                                );
+                                              })()}
+                                            </div>
+                                          ) : (
+                                            <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-3">
+                                              <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Maintenance Progress</span>
+                                              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                                Engineer Team A has arrived at location. Diagnostic instruments calibrated. Ready for component replacement and calibration.
+                                              </p>
+                                              <button 
+                                                onClick={() => {
+                                                  setMaintenanceWorkflows(prev => ({
+                                                    ...prev,
+                                                    [selectedMachine]: { ...prev[selectedMachine], showCompletionForm: true }
+                                                  }));
+                                                }}
+                                                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1 font-mono uppercase animate-pulse"
+                                              >
+                                                Complete Maintenance
+                                              </button>
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        /* Scheduled or Dispatched info card */
+                                        <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-2">
+                                          <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Workflow Status</span>
+                                          <div className="flex items-center gap-2 text-xs text-blue-400 font-bold">
+                                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                            <span>
+                                              {workflow.dispatched ? "Work Order Dispatched: Team En-Route" : "Work Order Scheduled: Awaiting Dispatch"}
+                                            </span>
+                                          </div>
+                                          <p className="text-[10px] text-slate-400 leading-relaxed">
+                                            {workflow.dispatched ? "Plant logistics has dispatched Maintenance Team A with parts payload. Arrival estimated in 2 mins." : "System scheduled automated downtime slots. Work order logged into SAP PM."}
+                                          </p>
+                                        </div>
                                       )}
-                                    </React.Fragment>
-                                  ))}
-                                </div>
+                                    </>
+                                  );
+                                } else {
+                                  /* Original Stepper / Approval flows */
+                                  return (
+                                    <>
+                                      {/* Maintenance Validation Stepper */}
+                                      <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3">
+                                        <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Maintenance Validation</span>
+                                        
+                                        {(() => {
+                                          const valState = validationStates[selectedMachine] || "pending";
+                                          const form = inspectionForms[selectedMachine] || { evidence: [], correct: 'yes', severity: 'Medium' };
+                                          if (valState === "pending" || valState === "verifying") {
+                                            return (
+                                              <div className="space-y-3">
+                                                <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
+                                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                                  <span>Inspection Status: Pending Technician Validation</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 leading-relaxed">AI has flagged potential degradation. Please perform physical inspection to validate.</p>
+                                                
+                                                <div className="space-y-2 text-xs">
+                                                  <input type="text" placeholder="Technician Name" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.techName || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'techName', e.target.value)} />
+                                                  <input type="text" placeholder="Employee ID" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.empId || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'empId', e.target.value)} />
+                                                  
+                                                  <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Inspection Evidence</span>
+                                                    <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-300">
+                                                      {['Visual Inspection', 'Thermal Camera', 'Vibration Analyzer', 'Acoustic Analysis', 'Manual Testing', 'Other'].map(ev => (
+                                                        <label key={ev} className="flex items-center gap-1.5 cursor-pointer hover:text-emerald-300 transition">
+                                                          <input type="checkbox" checked={form.evidence?.includes(ev)} onChange={() => handleEvidenceToggle(selectedMachine, ev)} className="accent-emerald-500" />
+                                                          {ev}
+                                                        </label>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                  
+                                                  <textarea placeholder="Evidence Summary (e.g., Excessive vibration observed...)" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-12 resize-none text-[10px]" value={form.summary || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'summary', e.target.value)} />
+                                                  
+                                                  <div className="pt-1">
+                                                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Was AI Prediction Correct?</span>
+                                                    <div className="flex gap-4">
+                                                      <label className="flex items-center gap-1 cursor-pointer">
+                                                        <input type="radio" name="correct" checked={form.correct === 'yes'} onChange={() => handleInspectionChange(selectedMachine, 'correct', 'yes')} className="accent-emerald-500" />
+                                                        <span className="text-white">Yes</span>
+                                                      </label>
+                                                      <label className="flex items-center gap-1 cursor-pointer">
+                                                        <input type="radio" name="correct" checked={form.correct === 'no'} onChange={() => handleInspectionChange(selectedMachine, 'correct', 'no')} className="accent-rose-500" />
+                                                        <span className="text-white">No</span>
+                                                      </label>
+                                                    </div>
+                                                  </div>
+                                                  
+                                                  {form.correct === 'yes' ? (
+                                                    <div className="flex flex-col gap-1 bg-slate-950/60 p-2.5 rounded-lg border border-emerald-900/40 text-[11px] leading-tight">
+                                                      <span className="text-emerald-400 font-bold text-center">Confirmed: {MASTER_FINANCIAL_BASES[selectedMachine].component}</span>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="space-y-2 pt-1 border-t border-slate-800">
+                                                      <span className="text-[10px] text-amber-400 uppercase tracking-wider block mb-1">Manual Override Required</span>
+                                                      <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.actualSubsystem || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'actualSubsystem', e.target.value)}>
+                                                        <option value="" disabled>Select Actual Subsystem</option>
+                                                        <option value="Spindle Drive Assembly">Spindle Drive Assembly</option>
+                                                        <option value="Joint 3 Gearbox Assembly">Joint 3 Gearbox Assembly</option>
+                                                        <option value="Clamping Hydraulic Unit">Clamping Hydraulic Unit</option>
+                                                        <option value="Rotary Screw Pneumatic Chamber">Rotary Screw Pneumatic Chamber</option>
+                                                        <option value="Drive Roller Pulley Assembly">Drive Roller Pulley Assembly</option>
+                                                        <option value="Hydraulic Pressure Valve Blocks">Hydraulic Pressure Valve Blocks</option>
+                                                      </select>
+                                                      <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.actualComponent || ''} onChange={(e) => handleInspectionChange(selectedMachine, 'actualComponent', e.target.value)}>
+                                                        <option value="" disabled>Select Actual Component</option>
+                                                        {Object.keys(MAINTENANCE_KNOWLEDGE_BASE).filter(k => k !== "Default").map(comp => (
+                                                          <option key={comp} value={comp}>{comp}</option>
+                                                        ))}
+                                                      </select>
+                                                      <select className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" value={form.severity || 'Medium'} onChange={(e) => handleInspectionChange(selectedMachine, 'severity', e.target.value)}>
+                                                        <option value="Low">Severity: Low</option>
+                                                        <option value="Medium">Severity: Medium</option>
+                                                        <option value="High">Severity: High</option>
+                                                      </select>
+                                                    </div>
+                                                  )}
+                                                  
+                                                  <button onClick={() => confirmInspection(selectedMachine)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded text-xs transition active:scale-95 flex items-center justify-center gap-1 mt-2">
+                                                    Confirm Inspection
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            );
+                                          } else { // confirmed
+                                            const vf = validatedFinancials[selectedMachine] || {};
+                                            return (
+                                              <div className="space-y-3 text-xs">
+                                                <div className="flex items-center gap-2 text-emerald-400 font-semibold bg-emerald-950/20 px-2 py-1.5 rounded border border-emerald-900/30">
+                                                  <CheckCircle className="w-4 h-4 shrink-0" />
+                                                  <span>Inspection Status: Confirmed</span>
+                                                </div>
+                                                
+                                                <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-850 space-y-2">
+                                                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-mono border-b border-slate-800 pb-1 mb-2 flex justify-between">
+                                                    <span>Before vs After Inspection</span>
+                                                    <span className="text-emerald-400">Validated</span>
+                                                  </div>
+                                                  
+                                                  <div className="flex justify-between items-center">
+                                                    <span className="text-slate-400">Predicted Component</span>
+                                                    <span className="text-slate-300 font-mono text-[10px] text-right truncate w-32">{MASTER_FINANCIAL_BASES[selectedMachine].component}</span>
+                                                  </div>
+                                                  <div className="flex justify-between items-center">
+                                                    <span className="text-slate-400">Actual Component</span>
+                                                    <span className="text-emerald-400 font-bold font-mono text-[10px] text-right truncate w-32">{vf.actualComponent}</span>
+                                                  </div>
+                                                  <div className="flex justify-between items-center pt-1 border-t border-slate-800/50">
+                                                    <span className="text-slate-400">AI Accuracy Status</span>
+                                                    <span className={`font-bold font-mono text-[10px] ${vf.isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                      {vf.isCorrect ? 'PREDICTION CORRECT' : 'PREDICTION INCORRECT'}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <div className="text-[10px] text-emerald-400 text-center font-mono animate-pulse mt-2 bg-emerald-950/20 py-1 rounded">
+                                                  Business Impact & Learning Database Updated ✓
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+                                        })()}
+                                      </div>
+
+                                      {/* Business Justification Ledger */}
+                                      <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800 space-y-2">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono">Business Justification Ledger</span>
+                                          {validationStates[selectedMachine] === "confirmed" ? (
+                                            <span className="bg-emerald-950/60 text-emerald-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-emerald-900/40">VALIDATED BUSINESS IMPACT</span>
+                                          ) : (
+                                            <span className="bg-amber-950/40 text-amber-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-900/30">PRELIMINARY AI ESTIMATE</span>
+                                          )}
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                          <span className="text-slate-400">Maintenance Cost:</span>
+                                          <span className="font-mono text-white">₹{(validatedFinancials[selectedMachine]?.maintCost || selAdv.maintCost).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                          <span className="text-slate-400">Failure Cost if Ignored:</span>
+                                          <span className="font-mono text-white">₹{(validatedFinancials[selectedMachine]?.potentialLoss || selAdv.potentialLoss).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                          <span className="text-slate-400">Estimated Production Loss:</span>
+                                          <span className="font-mono text-rose-400">₹{(validatedFinancials[selectedMachine]?.prodSaved || selAdv.prodSaved).toLocaleString()}</span>
+                                        </div>
+                                        <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
+                                          <span className="text-xs font-semibold text-emerald-300">Net Business Gain</span>
+                                          <span className="font-mono text-emerald-400 font-bold text-base">↑ ₹{(validatedFinancials[selectedMachine]?.netSavings || selAdv.netSavings).toLocaleString()}</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Business Impact Summary */}
+                                      <div className="bg-slate-950/30 rounded-xl p-3 border border-slate-800/60 grid grid-cols-3 gap-2 text-center">
+                                        <div>
+                                          <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Downtime Prevented</span>
+                                          <span className="text-xs font-bold text-white">{(validatedFinancials[selectedMachine]?.downtimeHrs || selAdv.downtimeHrs).toFixed(1)} hrs</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Production Saved</span>
+                                          <span className="text-xs font-bold text-emerald-400">₹{(validatedFinancials[selectedMachine]?.prodSaved || selAdv.prodSaved).toLocaleString()}</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-[8px] text-slate-500 uppercase tracking-wider block font-mono">Estimated ROI</span>
+                                          <span className="text-xs font-bold text-white">{((validatedFinancials[selectedMachine]?.netSavings || selAdv.netSavings) / (validatedFinancials[selectedMachine]?.maintCost || selAdv.maintCost)).toFixed(1)}×</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex flex-col gap-2">
+                                        {validationStates[selectedMachine] !== "confirmed" && validationStates[selectedMachine] !== "rejected" ? (
+                                          <>
+                                            <button
+                                              disabled
+                                              className="flex-1 py-2 rounded-lg font-bold text-xs bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed flex items-center justify-center gap-1.5"
+                                            >
+                                              <CheckCircle className="w-3.5 h-3.5" /> Approve Executive Recommendation
+                                            </button>
+                                            <p className="text-[9px] text-amber-500 text-center italic mt-0.5 leading-normal">
+                                              *Complete Maintenance Validation to approve recommended action.
+                                            </p>
+                                          </>
+                                        ) : approvedMachines.has(selectedMachine) || validationStates[selectedMachine] === "rejected" ? (
+                                          <div className={`flex-1 border py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 ${validationStates[selectedMachine] === "rejected" ? "bg-rose-950/60 border-rose-700/50 text-rose-400" : "bg-emerald-950/60 border-emerald-700/50 text-emerald-400"}`}>
+                                            {validationStates[selectedMachine] === "rejected" ? "Maintenance Deferred ❌" : "Dispatched ✓"}
+                                          </div>
+                                        ) : (
+                                          <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-3 mt-1">
+                                            <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-mono">Recommendation Review</span>
+                                            {(() => {
+                                              const recForm = recommendationForms[selectedMachine] || { decision: 'accept', priority: 'High', scheduledTime: 'Next Shift', strategy: 'Component Replacement' };
+                                              return (
+                                                <div className="space-y-3 text-[11px]">
+                                                  <div className="grid grid-cols-3 gap-2">
+                                                    <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'accept')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'accept' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Accept</button>
+                                                    <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'modify')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'modify' ? 'bg-amber-600/20 border-amber-500 text-amber-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Modify</button>
+                                                    <button onClick={() => handleRecommendationChange(selectedMachine, 'decision', 'reject')} className={`py-1.5 rounded border transition-colors ${recForm.decision === 'reject' ? 'bg-rose-600/20 border-rose-500 text-rose-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>Reject</button>
+                                                  </div>
+                                                  
+                                                  {recForm.decision === 'modify' && (
+                                                    <div className="space-y-2 pt-2 border-t border-slate-800/50">
+                                                      <select value={recForm.priority} onChange={(e) => handleRecommendationChange(selectedMachine, 'priority', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none">
+                                                        <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+                                                      </select>
+                                                      <input type="text" placeholder="Scheduled Time" value={recForm.scheduledTime} onChange={(e) => handleRecommendationChange(selectedMachine, 'scheduledTime', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" />
+                                                      <input type="text" placeholder="Repair Strategy" value={recForm.strategy} onChange={(e) => handleRecommendationChange(selectedMachine, 'strategy', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none" />
+                                                      <textarea placeholder="Maintenance Notes" value={recForm.notes} onChange={(e) => handleRecommendationChange(selectedMachine, 'notes', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-10 resize-none"></textarea>
+                                                    </div>
+                                                  )}
+                                                  
+                                                  {recForm.decision === 'reject' && (
+                                                    <div className="space-y-2 pt-2 border-t border-slate-800/50">
+                                                      <select value={recForm.rejectReason} onChange={(e) => handleRecommendationChange(selectedMachine, 'rejectReason', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none">
+                                                        <option value="">Select Reason for Rejection</option>
+                                                        <option>False Positive</option>
+                                                        <option>Production Constraints</option>
+                                                        <option>Machine Operating Normally</option>
+                                                        <option>Spare Parts Unavailable</option>
+                                                        <option>Safety Concern</option>
+                                                        <option>Engineer Override</option>
+                                                        <option>Business Priority Changed</option>
+                                                        <option>Other</option>
+                                                      </select>
+                                                      <textarea placeholder="Remarks" value={recForm.rejectRemarks} onChange={(e) => handleRecommendationChange(selectedMachine, 'rejectRemarks', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-white outline-none h-10 resize-none"></textarea>
+                                                    </div>
+                                                  )}
+                                                  
+                                                  <div className="pt-2">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                      <span className="text-[9px] text-slate-500 uppercase font-mono">Expected Outcome:</span>
+                                                      <span className={`text-[10px] font-bold ${recForm.decision === 'accept' ? 'text-emerald-400' : recForm.decision === 'modify' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                        {recForm.decision === 'accept' ? 'Savings Increase, Risk Reduced' : recForm.decision === 'modify' ? 'Business Impact Recalculated' : 'Maintenance Deferred, Financial Exposure Increased'}
+                                                      </span>
+                                                    </div>
+                                                    <button
+                                                      onClick={() => submitRecommendationDecision(selectedMachine)}
+                                                      disabled={recForm.decision === 'reject' && !recForm.rejectReason}
+                                                      className="w-full py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                      Confirm Decision
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
+                                        )}
+                                        
+                                        <button
+                                          onClick={() => setActiveTab("opportunities")}
+                                          className="flex-1 bg-slate-850 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white py-2 rounded-lg font-semibold text-xs transition border border-slate-700 font-mono uppercase tracking-wider text-[10px]"
+                                        >
+                                          Compare Alternatives
+                                        </button>
+                                      </div>
+                                    </>
+                                  );
+                                }
+                              })()}
+
+                              {/* 11E: Final Workflow Timeline */}
+                              <div className="rounded-xl border border-slate-800/60 bg-slate-950/20 px-3 py-3 space-y-2">
+                                <span className="text-[9px] uppercase tracking-wider text-slate-500 block font-mono font-bold">Industrial Maintenance Lifecycle</span>
+                                
+                                {(() => {
+                                  const valState = validationStates[selectedMachine];
+                                  const isVal = valState === "confirmed";
+                                  const wf = maintenanceWorkflows[selectedMachine];
+                                  
+                                  const steps = [
+                                    { label: "AI Detection", done: true, active: false },
+                                    { label: "Technician Validation", done: isVal || !!wf, active: !isVal && !wf },
+                                    { label: "Recommendation Review", done: isVal || !!wf, active: isVal && !wf },
+                                    { label: "Recommendation Approved", done: !!wf, active: isVal && !wf },
+                                    { label: "Maintenance Scheduled", done: !!wf, active: !!wf && !wf.dispatched },
+                                    { label: "Engineer Dispatched", done: !!wf && wf.dispatched, active: !!wf && wf.dispatched && !wf.inProgress },
+                                    { label: "Maintenance Completed", done: !!wf && wf.maintenanceCompleted, active: !!wf && wf.inProgress && !wf.maintenanceCompleted },
+                                    { label: "Recovery Validation", done: !!wf && wf.recoveryValidated, active: !!wf && wf.maintenanceCompleted && !wf.recoveryValidated },
+                                    { label: "Incident Closed", done: !!wf && wf.incidentClosed, active: !!wf && wf.recoveryValidated && !wf.incidentClosed },
+                                    { label: "AI Learning Updated", done: !!wf && wf.incidentClosed, active: false }
+                                  ];
+                                  
+                                  return (
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1.5 border-t border-slate-900">
+                                      {steps.map((s, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <div className={`w-2 h-2 rounded-full shrink-0 transition-all ${
+                                            s.done ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]' :
+                                            s.active ? 'bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(245,158,11,0.7)]' : 'bg-slate-800'
+                                          }`} />
+                                          <span className={`text-[9px] font-mono leading-none tracking-tight ${
+                                            s.done ? 'text-emerald-400 font-bold' :
+                                            s.active ? 'text-amber-400 font-bold' : 'text-slate-500'
+                                          }`}>
+                                            {s.done ? "✓ " : ""}{s.label}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           ) : (
