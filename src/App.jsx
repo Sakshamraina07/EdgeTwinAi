@@ -2146,11 +2146,14 @@ export default function App() {
                 </div>
 
                 {/* AI Decision Center & Explainable Inspection Panel */}
-                <div className="col-span-1 flex flex-col gap-5 overflow-y-auto pr-1 custom-scrollbar sticky top-0" style={{maxHeight: 'calc(100vh - 180px)'}}>
+                <div className="col-span-1 sticky top-4 self-start">
                   {telemetry[selectedMachine] ? (
-                    <>
+                    <div className="glass-panel rounded-2xl border border-slate-800/80 p-5 flex flex-col gap-6">
                       {/* AI Executive Advisor & Financial Justification Panel */}
-                      <div className={`glass-panel rounded-2xl p-5 border ${getMachineColor(telemetry[selectedMachine].status)} relative`}>
+                      <div className={`relative pb-5 border-b border-slate-800/60 pl-3 border-l-2 ${
+                        telemetry[selectedMachine].status === 'critical' ? 'border-l-rose-500' :
+                        telemetry[selectedMachine].status === 'warning' ? 'border-l-amber-500' : 'border-l-emerald-500'
+                      }`}>
                         <div className="absolute top-0 right-0 w-20 h-20 bg-white opacity-5 rounded-full blur-2xl" style={{transform: 'translate(30%, -30%)'}}></div>
                         
                         <div className="flex items-start justify-between border-b border-white/10 pb-3 mb-4 gap-2">
@@ -2480,7 +2483,7 @@ export default function App() {
                       </div>
 
                       {/* Decision Quality Score Metric Card */}
-                      <div className="glass-panel rounded-2xl p-5 border border-slate-800 relative overflow-hidden">
+                      <div className="relative pb-5 border-b border-slate-800/60 overflow-hidden">
                         <div className="flex justify-between items-center mb-1">
                           <div>
                             <h4 className="font-display font-bold text-sm text-slate-200">Decision Quality Score</h4>
@@ -2488,14 +2491,14 @@ export default function App() {
                           </div>
                           <span className="bg-slate-900 text-slate-200 px-2 py-1 rounded text-base font-mono font-bold border border-slate-800">{decisionQualityScore}%</span>
                         </div>
-                        <p className="text-[10px] text-slate-400 leading-relaxed border-t border-slate-850 pt-2 mt-2">
+                        <p className="text-[10px] text-slate-400 leading-relaxed border-t border-slate-800/60 pt-2 mt-2">
                           Evaluates operational decision safety, cost recovery ratio, energy impact, downtime offset, and model classification confidence.
                         </p>
                       </div>
 
                       {/* AI Explainability & Engineering report */}
-                      <div className="glass-panel rounded-2xl p-5 border border-slate-800">
-                        <h4 className="font-display font-bold text-sm text-white mb-3 pb-2 border-b border-slate-850">🛡️ AI Explainability Engineering Report</h4>
+                      <div className="pb-5 border-b border-slate-800/60">
+                        <h4 className="font-display font-bold text-sm text-white mb-3 pb-2 border-b border-slate-800/60">🛡️ AI Explainability Engineering Report</h4>
                         
                         <div className="space-y-4">
                           <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase font-mono block">Why was {selectedMachine} selected?</span>
@@ -2558,7 +2561,7 @@ export default function App() {
                       </div>
 
                       {/* Recommendation Lifecycle */}
-                      <div className="glass-panel rounded-2xl p-5 border border-slate-800">
+                      <div>
                         <h4 className="font-display font-bold text-sm text-slate-200 mb-4">Enterprise Action Workflow</h4>
                         <div className="relative border-l border-slate-700 ml-2 pl-4 space-y-4 text-xs font-medium">
                           <div className="relative">
@@ -2583,9 +2586,9 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className="glass-panel rounded-2xl p-6 border border-slate-800/60 flex flex-col items-center justify-center h-full text-slate-400 text-sm">
+                    <div className="glass-panel rounded-2xl p-6 border border-slate-800/60 flex flex-col items-center justify-center min-h-[400px] text-slate-400 text-sm">
                       <AlertCircle className="w-8 h-8 mb-2 text-slate-600" />
                       Select a machine on the grid to inspect.
                     </div>
